@@ -473,6 +473,81 @@ GOTCHAS AND HANDOFF NOTES
     referenced by the adaptive icon XML and exist for the density-based
     ThemeTest assertion (test 1). The vector drawable is used for the splash.
 
+30. ANDROID VECTORDRAWABLE HAS NO <circle> ELEMENT
+    SVG's <circle> does not exist in Android's VectorDrawable format. The
+    equivalent is a path of two semicircular arcs that form a closed loop:
+      M{left},54 A{r},{r} 0 0,1 {right},54 A{r},{r} 0 0,1 {left},54 Z
+    The common SVG trick of A r,r 0 1,0 x+0.001,y (near-complete arc) renders
+    as a visible gap when stroked at large sizes. Two half-arcs are reliable.
+    For a stroke-only ring: set fillColor="#00000000" and strokeColor/strokeWidth.
+    For a filled circle: set fillColor and omit stroke. The Z (close path) is
+    needed for fill to render correctly; without it, some renderers leave the
+    path open and the fill bleeds.
+
+31. SPLASHSCREEN THEME ATTRIBUTES TAKE NO NAMESPACE PREFIX
+    When extending Theme.SplashScreen from core-splashscreen, the child theme
+    attributes use NO namespace:
+      <item name="windowSplashScreenBackground">...</item>   CORRECT
+      <item name="android:windowSplashScreenBackground">...  WRONG for pre-31
+      <item name="app:windowSplashScreenBackground">...      WRONG
+    The library declares its own attrs (no namespace) in its res/values/attrs.xml
+    and maps them to the platform android: attrs at runtime on API 31+. Using
+    android: prefix directly fails silently on API 26-30 (minSdk = 26).
+    postSplashScreenTheme (no prefix) is also a library attr, not a platform one.
+
+32. TWO SEPARATE ic_launcher_foreground RESOURCES COEXIST
+    R.mipmap.ic_launcher_foreground  — the PNG files in mipmap-*dpi/ folders
+    R.drawable.ic_launcher_foreground — the vector XML in drawable/
+    These are distinct resource types with distinct IDs. The adaptive icon XML
+    and the splash theme reference @drawable/ic_launcher_foreground (the vector).
+    ThemeTest.launcher_icon_present_at_all_densities checks R.mipmap.ic_launcher_foreground
+    (the PNGs). Do NOT move the vector into mipmap-anydpi-v26/ — the anydpi
+    qualifier beats all density qualifiers on API 26+, so the PNGs would be
+    silently ignored for every real device, making the density test meaningless.
+
+33. PURE PYTHON PNG GENERATION (no Pillow required)
+    When rsvg-convert and ImageMagick are unavailable, valid RGBA PNGs can be
+    written with only Python stdlib (struct + zlib). Key invariants:
+      - Each scanline starts with a filter byte (0 = None/no filter)
+      - Then 4 bytes per pixel: R G B A
+      - Compress the raw bytes with zlib.compress()
+      - IHDR chunk: struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)
+        bit depth=8, colour type=6 (RGBA), compression/filter/interlace=0
+      - Each chunk: 4-byte length + 4-byte tag + data + 4-byte CRC32 of tag+data
+      - CRC computed with zlib.crc32(tag + data) & 0xFFFFFFFF
+    The generation script is not committed; see docs/icons-regen.md for
+    the preferred rsvg-convert command when tooling is available.
+
+34. ROBOLECTRIC DENSITY TESTING REQUIRES createConfigurationContext
+    Changing context.resources.displayMetrics.densityDpi directly does NOT
+    affect which mipmap bucket Robolectric selects; that field is read-only
+    in the shadow. The correct pattern is:
+      val cfg = Configuration(context.resources.configuration)
+      cfg.densityDpi = DisplayMetrics.DENSITY_XHIGH
+      val ctx = context.createConfigurationContext(cfg)
+      val d = ctx.getDrawable(R.mipmap.ic_launcher_foreground)
+    createConfigurationContext returns a new context whose resource resolver
+    picks the right density bucket. Used in ThemeTest.launcher_icon_present_at_all_densities.
+
+35. SPLASH BACKGROUND IS ALWAYS CREAM — NOT NIGHT-MODE AWARE
+    themes.xml wires windowSplashScreenBackground to @color/brand_cream, which
+    is a fixed #F6F3EB regardless of day/night mode. The values-night/colors.xml
+    overrides @color/background to charcoal, but NOT brand_cream. Consequence:
+    the splash screen is always cream-coloured, even in system dark mode.
+    If a dark splash is wanted in future, change the themes.xml item to reference
+    @color/background instead of @color/brand_cream. This was a deliberate choice
+    to keep the splash visually consistent with the site's light-mode branding.
+
+36. ic_launcher_background.xml MUST USE <shape>, NOT <drawable android:color>
+    The background for an adaptive icon must be a Drawable resource. The correct
+    form in drawable/ is a shape drawable:
+      <shape><solid android:color="@color/brand_cream"/></shape>
+    The alternative form <drawable android:color="..."/> is a ColorDrawable alias
+    valid only as an inline resource reference, not as a standalone Drawable file.
+    Referencing a plain @color/... directly in the adaptive-icon XML (without the
+    shape wrapper) causes aapt to fail: "android:drawable attribute is not
+    a Drawable resource."
+
 
 NEXT TASKS (from ledger)
 ------------------------
