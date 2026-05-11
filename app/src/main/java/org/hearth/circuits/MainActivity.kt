@@ -7,6 +7,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewAssetLoader
 
 class MainActivity : ComponentActivity() {
@@ -15,6 +16,7 @@ class MainActivity : ComponentActivity() {
     internal lateinit var webViewClient: WebViewClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webView)

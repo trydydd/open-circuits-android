@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Brand colours derived from overlay/css/open-circuits.css (:root block).
+  brand_copper: oc-accent  rgb(147 95 22)   oklch(55% 0.130 60)
+  brand_cream:  oc-bg      rgb(246 243 235)  oklch(96.5% 0.010 82)
+  background:   alias for brand_cream in light mode; overridden in values-night.
+-->
+<resources>
+    <color name="brand_copper">#935F16</color>
+    <color name="brand_cream">#F6F3EB</color>
+    <color name="background">#F6F3EB</color>
+</resources>

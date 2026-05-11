@@ -501,6 +501,7 @@ tasks:
         --no-verify flag. Verification is mandatory.
 
   - id: B5
+    status: done
     title: Adaptive launcher icons, splash, theme colors
     intent: |
       Brand the app properly for home screens and the Android 12+

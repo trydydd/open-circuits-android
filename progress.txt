@@ -1,7 +1,7 @@
 PROGRESS
 ========
 Last updated: 2026-05-11
-Branch: claude/complete-task-b4-android-ABDbT
+Branch: claude/complete-task-b4-android-ABDbT (B5 added here)
 
 
 COMPLETED
@@ -231,7 +231,249 @@ GOTCHAS AND HANDOFF NOTES
     anchored at end of line), so partial tag matches cannot collide.
 
 
+B5 - Adaptive launcher icons, splash, theme colors (status: done)
+  All 5 ThemeTest Robolectric cases pass (17 total across all test classes).
+  Files added:
+    drawable/ic_launcher_foreground.xml  (vector: copper ring + centre dot, 108dp canvas)
+    drawable/ic_launcher_background.xml  (solid brand_cream shape)
+    mipmap-anydpi-v26/ic_launcher.xml    (adaptive-icon referencing the above drawables)
+    mipmap-anydpi-v26/ic_launcher_round.xml  (identical to ic_launcher.xml)
+    mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_foreground.png
+    values/colors.xml           (brand_copper #935F16, brand_cream #F6F3EB, background)
+    values-night/colors.xml     (background overridden to #26211D charcoal)
+    app/src/test/.../ThemeTest.kt
+    docs/icons-regen.md         (rsvg-convert / ImageMagick regen commands)
+  Modified:
+    values/themes.xml   (added Theme.OpenCircuits.Splash extending Theme.SplashScreen)
+    AndroidManifest.xml (splash theme set on MainActivity)
+    MainActivity.kt     (installSplashScreen() before super.onCreate)
+    libs.versions.toml  (core-splashscreen 1.0.1)
+    app/build.gradle.kts (added splashscreen dep)
+  Brand colours from docs/brand-guide.md:
+    brand_copper: oc-accent rgb(147,95,22) oklch(55% 0.130 60)
+    brand_cream:  oc-bg     rgb(246,243,235) oklch(96.5% 0.010 82)
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+1. LEDGER LOCATION CHANGED
+   The ledger started at work-ledger.yaml in the repo root and was moved
+   to docs/ledgers/open-circuits-android.yaml mid-session. If anything
+   references the old path, update it.
+
+2. docs/BUILDING.md IS NOT ANDROID DOCS
+   The file at docs/BUILDING.md describes the upstream open-circuits web
+   project build (Python, make, git-lfs, beautifulsoup4). It came in with
+   the ledger commit. It does not apply to the Android build. The Android
+   setup docs live in README.md.
+
+3. MATERIAL3 THEME NEEDS THE MATERIAL DEPENDENCY
+   Theme.Material3.DayNight.NoActionBar requires
+   com.google.android.material:material, not just AndroidX core. It was
+   added to libs.versions.toml as `material = "1.12.0"`. Without it,
+   the resource merge fails. Future tasks that touch themes.xml should
+   keep this dep.
+
+4. .GITIGNORE: USE build/ NOT /build
+   The original entry was `/build` which only ignores a build/ directory
+   at the repo root. This meant app/build/ showed up as untracked. Changed
+   to `build/` (no leading slash) which covers all depths. The stop hook
+   caught this.
+
+5. ANDROID_HOME MUST BE EXPORTED FOR GRADLE
+   In shell scripts, setting ANDROID_HOME=... without `export` means child
+   processes (including ./gradlew) cannot see it. Gradle falls back to
+   local.properties, and if that is absent too, it errors with "SDK location
+   not found." Always `export ANDROID_HOME` after resolving it in scripts.
+
+6. GRADLE WRAPPER BOOTSTRAP QUIRK
+   Running `gradle wrapper` requires at least an empty settings.gradle.kts
+   to exist first, otherwise it errors with "directory does not contain a
+   Gradle build." A temporary empty file was created, the wrapper generated,
+   then the file removed before writing the real settings.gradle.kts.
+
+7. JDK REQUIREMENT IS HARD
+   AGP 8.7.x requires JDK 17 minimum; the project targets JDK 21.
+   JDK 11 fails at compileDebugWithJavac. The smoke test script now checks
+   this early and exits with a clear message + SDKMAN install instructions.
+
+8. BUILDCONFIG IS DISABLED
+   app/build.gradle.kts has `buildFeatures { buildConfig = false }`. This
+   satisfies the taboo on env-varying BuildConfig fields. If a future task
+   needs BuildConfig (unlikely given the guardrails), this will need
+   revisiting.
+
+9. CONFIGURATION CACHE IS ENABLED
+   gradle.properties has `org.gradle.configuration-cache=true`. This speeds
+   up incremental builds but can cause problems with plugins that are not
+   configuration-cache compatible. If a future Gradle task fails with a
+   configuration cache serialisation error, this is the first thing to check.
+
+10. SMOKE TEST SCRIPT
+    scripts/smoke_test_install.sh automates the B1 done_when check:
+    "APK installs on an emulator and shows a blank activity without crashing."
+    Two modes:
+      ./scripts/smoke_test_install.sh              # needs a running AVD
+      ./scripts/smoke_test_install.sh --create-avd # creates one headlessly
+    The --create-avd path installs system-images;android-35;default;x86_64
+    and boots headless with swiftshader_indirect GPU. Needs KVM on Linux.
+
+
+11. LINT-API VERSION CONVENTION
+    com.android.tools.lint:lint-api version = AGP major + 23, same minor/patch.
+    AGP 8.7.3 -> lint-api 31.7.3. Added to libs.versions.toml as lintApi.
+    The lint-checks module uses java-library + kotlin-jvm plugin (NOT
+    com.android.library). It must declare `compileOnly(libs.lint.api)` and
+    include META-INF/services/com.android.tools.lint.client.api.IssueRegistry
+    pointing at the IssueRegistry subclass.
+
+12. KOTLIN-JVM PLUGIN IN MULTI-MODULE BUILDS
+    Adding alias(libs.plugins.kotlin.jvm) to a submodule fails with
+    "plugin already on classpath with unknown version" unless the root
+    build.gradle.kts also declares `alias(libs.plugins.kotlin.jvm) apply false`.
+    This is required so Gradle can resolve the version for compatibility checking.
+
+13. SESSION-START: INSTALL THE ANDROID SDK BEFORE ANY GRADLE COMMAND
+    The SDK is not pre-installed. Run this at the top of every new session
+    before touching Gradle. Uses $HOME so it works regardless of user:
+
+      SDK_DIR="$HOME/android-sdk"
+      mkdir -p "$SDK_DIR/cmdline-tools"
+      curl -fsSL -o /tmp/clt.zip \
+        "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+      unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
+      mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+      export ANDROID_HOME="$SDK_DIR"
+      yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+        "platforms;android-35" "build-tools;35.0.0"
+      echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+    local.properties is gitignored and must be (re)created every session.
+    export ANDROID_HOME before every ./gradlew invocation, or add it to
+    the shell profile for the session. AGP also auto-downloads build-tools
+    34.0.0 and platform-tools on first use — this is expected and fine.
+    The cmdline-tools version (11076708) corresponds to SDK tools 12.0;
+    check https://developer.android.com/studio if this URL ever 404s.
+
+14. ROBOLECTRIC TESTS NEED isIncludeAndroidResources = true
+    Without `testOptions { unitTests { isIncludeAndroidResources = true } }` in
+    app/build.gradle.kts, Robolectric cannot load the merged manifest and
+    resources. ManifestTest.kt uses @Config(sdk = [34]) to avoid potential
+    API 35 shadow download issues.
+
+15. LINTCHECKS CONFIGURATION
+    `lintChecks(project(":lint-checks"))` in app/build.gradle.kts is the correct
+    way to wire a java-library lint module. The lint jar (built by :lint-checks:jar)
+    is picked up automatically when running :app:lintDebug or :app:lintRelease.
+
+
+16. local.properties IS GITIGNORED AND EPHEMERAL
+    The file is listed in .gitignore and is never committed. It must be
+    regenerated at the start of each session as part of the SDK install
+    step in gotcha 13. Do not attempt to read a stale sdk.dir path from
+    it — it will either be absent or point at a path from a previous session.
+
+17. MAINACTIVITY EXTENDS ComponentActivity, NOT AppCompatActivity
+    The activity uses androidx.activity.ComponentActivity directly.
+    This is sufficient for Material3 XML themes (which are just manifest-
+    level attributes) and for OnBackPressedDispatcher. If a future task
+    needs fragment support or AppCompat-specific behaviour, upgrade to
+    AppCompatActivity and add the appcompat dependency.
+
+18. WEBVIEWASSETLOADER PATH CONVENTION
+    The asset loader is mounted at /assets/ so the virtual URL is:
+      https://appassets.androidplatform.net/assets/html/index.html
+    The path handler maps to app/src/main/assets/html/. If a future task
+    changes the extraction layout (e.g. strips or adds a directory level),
+    update this URL in MainActivity.onCreate and the matching assertion in
+    MainActivityTest.webview_loads_index.
+
+19. NETWORK INTERCEPTOR RETURNS 403, NOT null
+    The WebViewClient.shouldInterceptRequest override returns an explicit
+    403 WebResourceResponse for any non-asset host rather than null. This
+    means the WebView sees a proper HTTP error instead of a silent miss,
+    which makes debugging easier. The test (blocks_non_file_requests)
+    asserts statusCode == 403 specifically.
+
+20. ROBOLECTRIC SHADOWWEBVIEW HISTORY GOTCHA
+    ShadowWebView.loadUrl() records the last URL but does NOT build the
+    back/forward history that canGoBack() reads. To test back-navigation
+    in Robolectric unit tests:
+      - Use shadow.setCanGoBack(true) to set the precondition.
+      - Use shadow.getGoBackInvocations() to assert goBack() was called.
+      - setCanGoBack() is marked @Deprecated in Robolectric; suppress with
+        @Suppress("DEPRECATION") at the call site.
+    To actually populate history (e.g. for URL assertions after goBack),
+    use shadow.pushEntryToHistory(url) instead of loadUrl().
+
+21. UNIT TEST DEP: androidx.test:core IS NEEDED FOR ROBOLECTRIC + ACTIVITYSCENARIO
+    ActivityScenario lives in androidx.test:core, not in robolectric itself.
+    It must appear as testImplementation, not androidTestImplementation.
+    Version 1.6.1 was added to libs.versions.toml as androidxTestCore and
+    wired in app/build.gradle.kts.
+
+22. BACK NAVIGATION USES OnBackPressedCallback, NOT onBackPressed() OVERRIDE
+    The back-press handling is wired via
+      onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { ... })
+    This is the non-deprecated API for API 33+. In Robolectric tests,
+    trigger it via activity.onBackPressedDispatcher.onBackPressed() — do NOT
+    call activity.onBackPressed() directly (that chains through the dispatcher
+    anyway but is itself deprecated on ComponentActivity).
+
+23. WEBVIEW STATE SAVE/RESTORE PATTERN
+    webView.saveState(outState) is called from onSaveInstanceState.
+    In onCreate, if savedInstanceState != null, webView.restoreState() is called
+    instead of loadUrl(). This means on rotation the page is restored from the
+    bundle rather than reloaded from scratch. The Robolectric shadow's
+    saveState/restoreState write/read the history index to the Bundle using
+    internal keys "HISTORY" and "HISTORY_INDEX".
+
+24. ESPRESSO TESTS REQUIRE REAL ASSETS — CANNOT RUN UNTIL CONTENT IS SYNCED
+    WebViewBehaviorTest instrumented tests evaluate document.title and
+    localStorage via evaluateJavascript. They need a real WebView rendering
+    real HTML. Run `./scripts/sync_content.sh <tag>`, commit the assets, then
+    run the instrumented tests on a device or emulator with airplane mode ON.
+
+25. SYNC_CONTENT.SH SHA256 ENTRY FORMAT
+    scripts/sync_content.sha256 uses the same two-space format as sha256sum:
+      <64-hex-chars>  <tag>
+    The 'test' entry uses an all-zero dummy hash so the SHA256 mismatch test
+    (case 3) works offline. When pinning a real release, run:
+      sha256sum /tmp/oc.tar.gz | sed "s|  .*|  <tag>|"
+    and append the result. The script greps for "  <tag>$" (two spaces + tag
+    anchored at end of line), so partial tag matches cannot collide.
+
+26. SPLASH SCREEN: installSplashScreen() BEFORE super.onCreate()
+    MainActivity calls installSplashScreen() as the FIRST line of onCreate(),
+    before super.onCreate(). The manifest sets android:theme on the activity
+    to Theme.OpenCircuits.Splash. The splash theme's postSplashScreenTheme
+    attribute is Theme.OpenCircuits, which takes over after the first frame.
+    The core-splashscreen library (1.0.1) is an implementation dependency, NOT
+    testImplementation. Robolectric uses its shadows for the splash screen API.
+
+27. XML COMMENTS CANNOT CONTAIN DOUBLE HYPHENS
+    Android's aapt/AAPT2 validates XML comments. A comment containing "--"
+    triggers "Error: The string '--' is not permitted within comments."
+    CSS variable names like "--oc-accent" cannot appear verbatim in XML comments;
+    strip the leading hyphens (e.g., write "oc-accent" instead).
+
+28. RES/ DIRECTORY ONLY ACCEPTS RECOGNISED FILE TYPES
+    Any file in app/src/main/res/ that is not XML or a known binary type
+    (PNG, JPG, etc.) causes aapt to fail with "The file name must end with .xml".
+    Plain text files (README, .md, etc.) must live outside of res/. The icon
+    regen documentation is at docs/icons-regen.md, not inside res/.
+
+29. ADAPTIVE ICON STRUCTURE (B5)
+    The adaptive icon (mipmap-anydpi-v26/ic_launcher.xml) references:
+      foreground: @drawable/ic_launcher_foreground  (vector drawable, 108dp canvas)
+      background: @drawable/ic_launcher_background  (solid cream shape)
+    The standalone ic_launcher_foreground.png files in mipmap-*dpi/ are
+    separate mipmap resources (R.mipmap.ic_launcher_foreground). They are NOT
+    referenced by the adaptive icon XML and exist for the density-based
+    ThemeTest assertion (test 1). The vector drawable is used for the splash.
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B5 - Adaptive launcher icons, splash, theme colors (depends on B1)
 B6 - Build flavors (play, foss) + signing config (depends on B3)
