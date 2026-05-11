@@ -702,7 +702,68 @@ GOTCHAS AND HANDOFF NOTES
     triggers programmatically.
 
 
+B8 - Fastlane metadata for Play + F-Droid (status: done)
+  All 7 scripted test cases pass. Files added:
+    fastlane/metadata/android/en-US/title.txt            (13 chars)
+    fastlane/metadata/android/en-US/short_description.txt (80 chars)
+    fastlane/metadata/android/en-US/full_description.txt  (1126 chars)
+    fastlane/metadata/android/en-US/changelogs/1.txt      (113 chars)
+    fastlane/metadata/android/en-US/images/icon.png       (512x512)
+    fastlane/metadata/android/en-US/images/featureGraphic.png (1024x500)
+    fastlane/metadata/android/en-US/images/phoneScreenshots/1-4.png (1080x1920)
+    fastlane/Appfile
+    fastlane/Fastfile  (playstore + apk_release lanes)
+    fastlane/README    (screenshot regen instructions)
+    tests/test_fastlane_metadata.sh
+  Test cases (all pass):
+    title_length            -- wc -c <= 31
+    short_desc_length       -- wc -c <= 81
+    full_desc_length        -- wc -c <= 4001
+    changelog_length        -- all changelogs/*.txt wc -c <= 501
+    feature_graphic_dims    -- identify reports 1024x500
+    at_least_two_screenshots -- 4 screenshots present
+    no_emoji_in_metadata    -- grep finds no emoji codepoints
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+50. PLAY STORE CHARACTER LIMITS ARE CONTENT CHARS, NOT BYTE COUNT
+    The ledger test cases use `wc -c` which counts bytes (including the
+    trailing newline). For ASCII-only metadata the byte count equals
+    character count + 1 (for the newline). The limits in the tests are
+    therefore +1 relative to the Play Store UI limit:
+      title:             wc -c <= 31  (30 chars + newline)
+      short_description: wc -c <= 81  (80 chars + newline)
+      full_description:  wc -c <= 4001 (4000 chars + newline)
+      changelogs:        wc -c <= 501 (500 chars + newline)
+    If non-ASCII characters (multi-byte UTF-8) are ever introduced, wc -c
+    will overcount. Switch to `wc -m` for character counting in that case.
+
+51. SCREENSHOTS ARE PLACEHOLDER PNGS, NOT REAL APP SCREENS
+    The four phoneScreenshots/N.png files are programmatically generated
+    1080x1920 PNGs using Python stdlib. They satisfy the test (>= 2 files
+    present) but are not real app screenshots. Before submitting to Play
+    or F-Droid, replace them with real captures per the instructions in
+    fastlane/README. The feature graphic is similarly a placeholder at the
+    correct 1024x500 dimensions.
+
+52. IMAGEMAGICK REQUIRED FOR feature_graphic_dims TEST
+    The test_fastlane_metadata.sh script checks featureGraphic.png
+    dimensions using `identify` from ImageMagick. If ImageMagick is not
+    installed, the script falls back to reading the PNG IHDR chunk via
+    Python (portable, no extra deps). In CI this fallback will be used
+    unless ImageMagick is pre-installed on the runner.
+
+53. FASTFILE USES set_github_release FROM fastlane-plugin-github
+    The apk_release lane calls `set_github_release`, which is provided by
+    the fastlane built-in action (fastlane >= 2.x). No extra Gemfile entry
+    is needed. The GITHUB_TOKEN, RELEASE_TAG, and VERSION_CODE environment
+    variables must be set by the caller (CI workflow).
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B8 - Fastlane metadata for Play + F-Droid (depends on B5)
 B9 - CI build workflow on every PR (depends on B6)
+B10 - CI release workflow on tag (depends on B6, B8, B9)
+B11 - F-Droid inclusion package + privacy policy (depends on B4, B6, B8)

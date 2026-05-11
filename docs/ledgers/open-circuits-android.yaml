@@ -745,6 +745,7 @@ tasks:
         reproducibility on a given AGP version.
 
   - id: B8
+    status: done
     title: Fastlane metadata for Play + F-Droid
     intent: |
       Store-listing copy lives in version control so updates ship via

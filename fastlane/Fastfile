@@ -1,0 +1,31 @@
+default_platform(:android)
+
+platform :android do
+  desc "Upload AAB to Play internal track"
+  lane :playstore do
+    upload_to_play_store(
+      track: "internal",
+      aab: "app/build/outputs/bundle/playRelease/app-play-release.aab",
+      skip_upload_apk: true,
+      skip_upload_metadata: false,
+      skip_upload_changelogs: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+  end
+
+  desc "Attach foss APK to a GitHub Release"
+  lane :apk_release do
+    github_release = set_github_release(
+      repository_name: "trydydd/open-circuits-android",
+      api_token: ENV["GITHUB_TOKEN"],
+      name: ENV["RELEASE_NAME"] || lane_context[SharedValues::VERSION_NUMBER],
+      tag_name: ENV["RELEASE_TAG"],
+      description: File.read("fastlane/metadata/android/en-US/changelogs/#{ENV['VERSION_CODE'] || '1'}.txt"),
+      upload_assets: [
+        "app/build/outputs/apk/foss/release/app-foss-release.apk",
+        "app/build/outputs/apk/foss/release/app-foss-release.apk.sha256"
+      ]
+    )
+  end
+end
