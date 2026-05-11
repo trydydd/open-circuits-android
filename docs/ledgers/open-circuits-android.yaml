@@ -599,6 +599,7 @@ tasks:
         what the adaptive-icon system needs.
 
   - id: B6
+    status: done
     title: Build flavors (play, foss) + signing config
     intent: |
       Two flavors, one source tree. play emits AAB for Play Console;

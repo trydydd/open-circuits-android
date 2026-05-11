@@ -1,7 +1,7 @@
 PROGRESS
 ========
 Last updated: 2026-05-11
-Branch: claude/complete-task-b4-android-ABDbT (B5 added here)
+Branch: claude/complete-b6-android-K75S9
 
 
 COMPLETED
@@ -549,6 +549,59 @@ GOTCHAS AND HANDOFF NOTES
     a Drawable resource."
 
 
+B6 - Build flavors (play, foss) + signing config (status: done)
+  All 18 Robolectric unit test cases pass per flavor (36 total across foss and play release
+  variants). Both flavors assemble/bundle. No GMS/Firebase detected. Files added/modified:
+    app/build.gradle.kts   (flavorDimensions, productFlavors, signingConfigs, assertNoGms)
+    .gitignore             (added /keystore.properties)
+    keystore.example.properties  (committed template; real file is gitignored)
+    app/src/test/java/org/hearth/circuits/FlavorParityTest.kt
+  Scripted cases from ledger:
+    assemble_play_release_succeeds  -- ./gradlew :app:bundlePlayRelease exits 0
+    assemble_foss_release_succeeds  -- ./gradlew :app:assembleFossRelease exits 0
+    foss_apk_no_gms                 -- grep exits 1 (no GMS in foss APK)
+    play_aab_no_gms                 -- grep exits 1 (no GMS in play AAB)
+  assertNoGms is bound to :app:check lifecycle.
+  FlavorParityTest.identical_class_files verifies no flavor-specific src/ dirs exist;
+  also compares kotlin class outputs if both post-build dirs are present.
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+37. JAVA PACKAGE SHADOWED INSIDE android {} DSL BLOCK
+    The kotlin identifier `java` is shadowed inside the android {} block by AGP's
+    java compile options extension. `java.util.Properties()` inside android {}
+    resolves to "AGP java extension".util which fails. Fix: add
+    `import java.util.Properties` at the top of the .kts file and load the
+    properties file at the top level (before android {}), then reference the
+    captured value inside the block.
+
+38. ASSIGNING release SIGNING CONFIG IN buildTypes
+    signingConfigs.getByName("debug") is always available (AGP creates it).
+    When keystore.properties is absent (CI without secrets), fall back to debug
+    signing so `assembleFossRelease` still succeeds. The release signingConfig
+    block is left with null fields when the props file is absent; the buildTypes
+    block selects debug vs release based on whether the file exists.
+
+39. assertNoGms USES DECLARED DEPS, NOT RESOLVED CLASSPATH
+    The assertNoGms task checks ExternalDependency.group in all configurations
+    at configuration time rather than resolving classpaths at execution time.
+    This is configuration-cache compatible (no Task.project access at execution time).
+    Using FileCollection inputs with configurations caused variant ambiguity errors
+    (multiple matched variants); resolved-at-configuration-time artifact scanning
+    caused "Task.project accessed at execution time" warnings. Declared-dep
+    checking is simpler, cache-safe, and sufficient because GMS would only enter
+    via an explicit dependency, never transitively in this offline app.
+
+40. FLAVOR-SPECIFIC CONFIGURATIONS ARE NAMED {flavor}{BuildType}CompileClasspath
+    After adding productFlavors, AGP creates variant-specific configurations like
+    fossDebugCompileClasspath, fossReleaseCompileClasspath, playDebugCompileClasspath,
+    playReleaseCompileClasspath. These are not available until after AGP processes
+    the android {} block. Accessing them in tasks.register {} before afterEvaluate
+    works, but using them as FileCollection inputs triggers variant ambiguity errors.
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B6 - Build flavors (play, foss) + signing config (depends on B3)
+B7 - Reproducible build verification (depends on B6)
