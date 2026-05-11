@@ -1,7 +1,7 @@
 PROGRESS
 ========
 Last updated: 2026-05-11
-Branch: claude/complete-b2-android-oMMzT
+Branch: claude/complete-task-b3-D1TZQ
 
 
 COMPLETED
@@ -16,6 +16,19 @@ B2 - Hardened AndroidManifest + custom lint rule (status: done)
   Custom lint rule NoInternetAllowed (id) fires with BUILD FAILED when
   INTERNET permission is added to the manifest. ./gradlew :app:lintDebug
   exits 0 with the clean manifest. Ledger marked done.
+
+B3 - MainActivity with WebViewAssetLoader, network interceptor, back nav (in progress)
+  All 8 Robolectric MainActivityTest cases pass alongside the existing 4
+  ManifestTest cases (12 total). Files added:
+    app/src/main/java/org/hearth/circuits/MainActivity.kt
+    app/src/main/res/layout/activity_main.xml
+    app/src/main/assets/.gitkeep
+    app/src/test/java/org/hearth/circuits/MainActivityTest.kt
+    app/src/androidTest/java/org/hearth/circuits/WebViewBehaviorTest.kt
+  Espresso tests (WebViewBehaviorTest) cannot run until B4 supplies the
+  bundled HTML assets. The test structure is correct but launches_and_renders,
+  navigation_link_works, and localstorage_persists_across_restart will fail
+  until app/src/main/assets/html/index.html exists.
 
 
 GOTCHAS AND HANDOFF NOTES
@@ -98,15 +111,27 @@ GOTCHAS AND HANDOFF NOTES
     build.gradle.kts also declares `alias(libs.plugins.kotlin.jvm) apply false`.
     This is required so Gradle can resolve the version for compatibility checking.
 
-13. ANDROID SDK NOT PRE-INSTALLED IN FRESH SESSIONS
-    The Android SDK is not available in new Claude Code sessions. Install it:
-      mkdir -p /root/android-sdk/cmdline-tools
-      curl -o /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-      unzip /tmp/clt.zip -d /root/android-sdk/cmdline-tools
-      mv /root/android-sdk/cmdline-tools/cmdline-tools /root/android-sdk/cmdline-tools/latest
-      export ANDROID_HOME=/root/android-sdk
-      yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0"
-    Then always `export ANDROID_HOME=/root/android-sdk` before Gradle commands.
+13. SESSION-START: INSTALL THE ANDROID SDK BEFORE ANY GRADLE COMMAND
+    The SDK is not pre-installed. Run this at the top of every new session
+    before touching Gradle. Uses $HOME so it works regardless of user:
+
+      SDK_DIR="$HOME/android-sdk"
+      mkdir -p "$SDK_DIR/cmdline-tools"
+      curl -fsSL -o /tmp/clt.zip \
+        "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+      unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
+      mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+      export ANDROID_HOME="$SDK_DIR"
+      yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+        "platforms;android-35" "build-tools;35.0.0"
+      echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+    local.properties is gitignored and must be (re)created every session.
+    export ANDROID_HOME before every ./gradlew invocation, or add it to
+    the shell profile for the session. AGP also auto-downloads build-tools
+    34.0.0 and platform-tools on first use — this is expected and fine.
+    The cmdline-tools version (11076708) corresponds to SDK tools 12.0;
+    check https://developer.android.com/studio if this URL ever 404s.
 
 14. ROBOLECTRIC TESTS NEED isIncludeAndroidResources = true
     Without `testOptions { unitTests { isIncludeAndroidResources = true } }` in
@@ -120,9 +145,78 @@ GOTCHAS AND HANDOFF NOTES
     is picked up automatically when running :app:lintDebug or :app:lintRelease.
 
 
+16. local.properties IS GITIGNORED AND EPHEMERAL
+    The file is listed in .gitignore and is never committed. It must be
+    regenerated at the start of each session as part of the SDK install
+    step in gotcha 13. Do not attempt to read a stale sdk.dir path from
+    it — it will either be absent or point at a path from a previous session.
+
+17. MAINACTIVITY EXTENDS ComponentActivity, NOT AppCompatActivity
+    The activity uses androidx.activity.ComponentActivity directly.
+    This is sufficient for Material3 XML themes (which are just manifest-
+    level attributes) and for OnBackPressedDispatcher. If a future task
+    needs fragment support or AppCompat-specific behaviour, upgrade to
+    AppCompatActivity and add the appcompat dependency.
+
+18. WEBVIEWASSETLOADER PATH CONVENTION
+    The asset loader is mounted at /assets/ so the virtual URL is:
+      https://appassets.androidplatform.net/assets/html/index.html
+    The path handler maps to app/src/main/assets/html/. If B4 changes
+    the extraction layout (e.g. strips or adds a directory level), update
+    this URL in MainActivity.onCreate and the matching assertion in
+    MainActivityTest.webview_loads_index.
+
+19. NETWORK INTERCEPTOR RETURNS 403, NOT null
+    The WebViewClient.shouldInterceptRequest override returns an explicit
+    403 WebResourceResponse for any non-asset host rather than null. This
+    means the WebView sees a proper HTTP error instead of a silent miss,
+    which makes debugging easier. The test (blocks_non_file_requests)
+    asserts statusCode == 403 specifically.
+
+20. ROBOLECTRIC SHADOWWEBVIEW HISTORY GOTCHA
+    ShadowWebView.loadUrl() records the last URL but does NOT build the
+    back/forward history that canGoBack() reads. To test back-navigation
+    in Robolectric unit tests:
+      - Use shadow.setCanGoBack(true) to set the precondition.
+      - Use shadow.getGoBackInvocations() to assert goBack() was called.
+      - setCanGoBack() is marked @Deprecated in Robolectric; suppress with
+        @Suppress("DEPRECATION") at the call site.
+    To actually populate history (e.g. for URL assertions after goBack),
+    use shadow.pushEntryToHistory(url) instead of loadUrl().
+
+21. UNIT TEST DEP: androidx.test:core IS NEEDED FOR ROBOLECTRIC + ACTIVITYSCENARIO
+    ActivityScenario lives in androidx.test:core, not in robolectric itself.
+    It must appear as testImplementation, not androidTestImplementation.
+    Version 1.6.1 was added to libs.versions.toml as androidxTestCore and
+    wired in app/build.gradle.kts.
+
+22. BACK NAVIGATION USES OnBackPressedCallback, NOT onBackPressed() OVERRIDE
+    The back-press handling is wired via
+      onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { ... })
+    This is the non-deprecated API for API 33+. In Robolectric tests,
+    trigger it via activity.onBackPressedDispatcher.onBackPressed() — do NOT
+    call activity.onBackPressed() directly (that chains through the dispatcher
+    anyway but is itself deprecated on ComponentActivity).
+
+23. WEBVIEW STATE SAVE/RESTORE PATTERN
+    webView.saveState(outState) is called from onSaveInstanceState.
+    In onCreate, if savedInstanceState != null, webView.restoreState() is called
+    instead of loadUrl(). This means on rotation the page is restored from the
+    bundle rather than reloaded from scratch. The Robolectric shadow's
+    saveState/restoreState write/read the history index to the Bundle using
+    internal keys "HISTORY" and "HISTORY_INDEX".
+
+24. ESPRESSO TESTS REQUIRE REAL ASSETS — CANNOT RUN UNTIL B4 IS DONE
+    WebViewBehaviorTest instrumented tests evaluate document.title and
+    localStorage via evaluateJavascript. They need a real WebView rendering
+    real HTML. The test structure is correct but all three cases will fail
+    with an empty/error page until B4's sync_content.sh has been run and
+    app/src/main/assets/html/index.html committed.
+
+
 NEXT TASKS (from ledger)
 ------------------------
 B4 - Content sync script + assets folder (depends on B1)
+     *** Must be done next. B3 Espresso tests block on it. ***
 B5 - Adaptive launcher icons, splash, theme colors (depends on B1)
-
-B4 should be done before B3. B3 depends on both B2 (done) and B4.
+B6 - Build flavors (play, foss) + signing config (depends on B3)

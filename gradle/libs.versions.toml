@@ -10,6 +10,7 @@ junit = "4.13.2"
 robolectric = "4.14.1"
 espressoCore = "3.6.1"
 androidxTestExtJunit = "1.2.1"
+androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityKtx" }
@@ -21,6 +22,7 @@ lint-api = { group = "com.android.tools.lint", name = "lint-api", version.ref = 
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
