@@ -601,6 +601,53 @@ GOTCHAS AND HANDOFF NOTES
     the android {} block. Accessing them in tasks.register {} before afterEvaluate
     works, but using them as FileCollection inputs triggers variant ambiguity errors.
 
+41. notCompatibleWithConfigurationCache DISCARDS THE ENTIRE BUILD'S CACHE ENTRY
+    `task.notCompatibleWithConfigurationCache(reason)` does not just skip caching
+    for that one task; it causes the entire configuration cache entry for that
+    WHOLE BUILD to be discarded. So if assertNoGms were run as part of `./gradlew
+    check`, the cache for the entire check invocation would be thrown away and all
+    93+ cache problems would be reported. Every subsequent `./gradlew check` run
+    would be a cold start. This is why assertNoGms instead captures dependency
+    groups at configuration time (no project access in doLast) — keeping the check
+    invocation fully cache-compatible.
+
+42. PASSING CONFIGURATION-TIME DATA TO doLast WITHOUT ACCESSING project
+    Inside `tasks.register("foo") { ... }`, the lambda body is a configuration-time
+    action and can access `project` freely. `doLast { ... }` is execution-time and
+    must NOT access `project` when the configuration cache is enabled. The idiomatic
+    Gradle pattern to bridge the two:
+      val data: SomeType = computeAtConfigurationTime()  // uses project.*
+      inputs.property("myKey", data)
+      doLast {
+          val d = inputs.properties["myKey"] as SomeType  // safe: task.inputs, not project
+      }
+    For collections, `inputs.property` requires the value to be serializable (String,
+    Int, List<String>, etc.). Complex objects must be reduced to primitives first.
+
+43. flavorDimensions SYNTAX AND REQUIRED dimension ON EACH FLAVOR
+    In Kotlin DSL, flavor dimensions must be appended with `+=`:
+      flavorDimensions += "distribution"    // correct
+      flavorDimensions = listOf(...)        // also works but verbose
+    Each productFlavor block must explicitly set `dimension = "distribution"`.
+    Omitting it causes: "All flavors must now belong to a named flavor dimension.
+    Learn more at https://d.android.com/r/tools/flavorDimensions-missing-error-message.html"
+
+44. BUILD OUTPUT PATHS AFTER ADDING FLAVORS
+    APK:  app/build/outputs/apk/foss/release/app-foss-release.apk
+    AAB:  app/build/outputs/bundle/playRelease/app-play-release.aab
+    These paths are tested by the scripted cases (foss_apk_no_gms, play_aab_no_gms)
+    and referenced in B9/B10 CI workflow tasks. The flavor name and build type appear
+    as separate directory segments for APKs; for AABs the flavor+type are joined
+    (playRelease). This asymmetry is AGP behaviour, not a project choice.
+
+45. Properties().apply { load(...) } SHADOWING INSIDE android {} LAMBDAS
+    Even after adding `import java.util.Properties`, calling
+    `Properties().apply { load(file.inputStream()) }` inside the android {} block
+    fails because `load` is resolved against the lambda receiver (an AGP DSL object),
+    not `java.util.Properties`. The fix is `also { props -> props.load(...) }` (explicit
+    receiver name), or simply load the properties before the android {} block at
+    top-level scope. Top-level loading is cleaner and avoids all receiver shadowing.
+
 
 NEXT TASKS (from ledger)
 ------------------------
