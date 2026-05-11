@@ -79,6 +79,7 @@ if [ -z "${ANDROID_HOME:-}" ]; then
   echo "       local.properties, or install Android Studio (which sets it automatically)."
   exit 1
 fi
+export ANDROID_HOME
 
 ADB="$ANDROID_HOME/platform-tools/adb"
 EMULATOR_BIN="$ANDROID_HOME/emulator/emulator"
