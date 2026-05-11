@@ -1,0 +1,93 @@
+PROGRESS
+========
+Last updated: 2026-05-11
+Branch: claude/complete-android-ledger-task-dBPD4
+
+
+COMPLETED
+---------
+B1 - Repo bootstrap (status: done)
+  All scripted test cases pass. APK installs and launches without crashing
+  on an emulator. Ledger marked done.
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+1. LEDGER LOCATION CHANGED
+   The ledger started at work-ledger.yaml in the repo root and was moved
+   to docs/ledgers/open-circuits-android.yaml mid-session. If anything
+   references the old path, update it.
+
+2. docs/BUILDING.md IS NOT ANDROID DOCS
+   The file at docs/BUILDING.md describes the upstream open-circuits web
+   project build (Python, make, git-lfs, beautifulsoup4). It came in with
+   the ledger commit. It does not apply to the Android build. The Android
+   setup docs live in README.md.
+
+3. MATERIAL3 THEME NEEDS THE MATERIAL DEPENDENCY
+   Theme.Material3.DayNight.NoActionBar requires
+   com.google.android.material:material, not just AndroidX core. It was
+   added to libs.versions.toml as `material = "1.12.0"`. Without it,
+   the resource merge fails. Future tasks that touch themes.xml should
+   keep this dep.
+
+4. .GITIGNORE: USE build/ NOT /build
+   The original entry was `/build` which only ignores a build/ directory
+   at the repo root. This meant app/build/ showed up as untracked. Changed
+   to `build/` (no leading slash) which covers all depths. The stop hook
+   caught this.
+
+5. ANDROID_HOME MUST BE EXPORTED FOR GRADLE
+   In shell scripts, setting ANDROID_HOME=... without `export` means child
+   processes (including ./gradlew) cannot see it. Gradle falls back to
+   local.properties, and if that is absent too, it errors with "SDK location
+   not found." Always `export ANDROID_HOME` after resolving it in scripts.
+
+6. GRADLE WRAPPER BOOTSTRAP QUIRK
+   Running `gradle wrapper` requires at least an empty settings.gradle.kts
+   to exist first, otherwise it errors with "directory does not contain a
+   Gradle build." A temporary empty file was created, the wrapper generated,
+   then the file removed before writing the real settings.gradle.kts.
+
+7. JDK REQUIREMENT IS HARD
+   AGP 8.7.x requires JDK 17 minimum; the project targets JDK 21.
+   JDK 11 fails at compileDebugWithJavac. The smoke test script now checks
+   this early and exits with a clear message + SDKMAN install instructions.
+
+8. BUILDCONFIG IS DISABLED
+   app/build.gradle.kts has `buildFeatures { buildConfig = false }`. This
+   satisfies the taboo on env-varying BuildConfig fields. If a future task
+   needs BuildConfig (unlikely given the guardrails), this will need
+   revisiting.
+
+9. CONFIGURATION CACHE IS ENABLED
+   gradle.properties has `org.gradle.configuration-cache=true`. This speeds
+   up incremental builds but can cause problems with plugins that are not
+   configuration-cache compatible. If a future Gradle task fails with a
+   configuration cache serialisation error, this is the first thing to check.
+
+10. SMOKE TEST SCRIPT
+    scripts/smoke_test_install.sh automates the B1 done_when check:
+    "APK installs on an emulator and shows a blank activity without crashing."
+    Two modes:
+      ./scripts/smoke_test_install.sh              # needs a running AVD
+      ./scripts/smoke_test_install.sh --create-avd # creates one headlessly
+    The --create-avd path installs system-images;android-35;default;x86_64
+    and boots headless with swiftshader_indirect GPU. Needs KVM on Linux.
+
+
+NEXT TASKS (from ledger)
+------------------------
+B2 - Hardened AndroidManifest + custom lint rule (depends on B1)
+B4 - Content sync script + assets folder (depends on B1)
+B5 - Adaptive launcher icons, splash, theme colors (depends on B1)
+
+B2 and B4 can be worked in parallel. B3 depends on both B2 and B4, so those
+two should be prioritised first.
+
+B2 note: requires a new Gradle module `lint-checks` wired via the lintChecks
+configuration. This is the first time settings.gradle.kts gains an include()
+beyond :app. The lint module needs its own build.gradle.kts with the Android
+lint API dep. Robolectric is already in the version catalog for the
+ManifestTest.kt unit tests.
