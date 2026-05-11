@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 
 plugins {
     alias(libs.plugins.android.application)
@@ -98,6 +99,12 @@ dependencies {
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.espresso.core)
+}
+
+// Reproducible builds: strip timestamps and sort entries in every archive task.
+tasks.withType<AbstractArchiveTask>().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
 }
 
 tasks.register("assertNoGms") {

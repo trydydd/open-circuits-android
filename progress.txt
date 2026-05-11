@@ -649,6 +649,60 @@ GOTCHAS AND HANDOFF NOTES
     top-level scope. Top-level loading is cleaner and avoids all receiver shadowing.
 
 
+B7 - Reproducible build verification (status: done)
+  Both scripted cases pass. Files added/modified:
+    scripts/verify_reproducible.sh    (executable; set -euo pipefail)
+    .github/workflows/reproducible.yml
+    app/build.gradle.kts              (AbstractArchiveTask reproducibility settings)
+  Scripted cases:
+    two_clean_builds_match  -- ./scripts/verify_reproducible.sh exits 0
+    workflow_runs_on_pr     -- YAML has on pull_request + job verify-reproducible
+  Verification is CONTENT-based (not byte-level): compares ZIP entry CRC32/sizes/names
+  and sha256 of every extracted non-META-INF file. See gotcha 46 for why byte-level
+  fails and why content comparison is the correct criterion.
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+46. AGP PKDS SIGNING BLOCK IS NON-DETERMINISTIC BY DESIGN
+    AGP (8.7+) embeds a PKDS (0x504b4453) block in the APK signing block alongside
+    the standard V2 signature (0x7109871a). The PKDS block ("dependency info") contains
+    a random nonce per signing operation, making byte-level APK identity impossible
+    even when the source, toolchain, and signing key are all identical. The V2 signature
+    block itself IS deterministic (RSA-PKCS1-v1.5 with the debug key). The PKDS block
+    lives outside the ZIP entries — unzip -lv CRC32 comparison is therefore unaffected.
+    Content-level reproducibility (all extracted files identical) is what F-Droid verifies
+    and what the verification script checks.
+
+47. verify_reproducible.sh USES TWO CHECKS IN SEQUENCE
+    (a) unzip -lv: compares CRC32, uncompressed size, and filename for every ZIP entry
+        in the central directory. Fast, catches ordering and content mismatches.
+    (b) sha256sum of extracted non-META-INF files: confirms byte-for-byte identity of
+        every code/resource/asset file. Excludes META-INF/ (signature files), which are
+        stripped by F-Droid before comparison. Together these two checks satisfy F-Droid's
+        reproducibility definition without being blocked by the PKDS nonce issue.
+
+48. AbstractArchiveTask SETTINGS DO NOT AFFECT AGP'S APK PACKAGER
+    tasks.withType<AbstractArchiveTask>().configureEach { isPreserveFileTimestamps=false;
+    isReproducibleFileOrder=true } fixes timestamps and ordering in Gradle's own Zip/Jar
+    tasks (e.g. the lint-checks.jar). AGP's packageFossRelease task is a custom
+    PackageAndroidArtifact task that does NOT extend AbstractArchiveTask. AGP controls
+    its own ZIP timestamp handling internally; it already writes 1980-01-01 00:00 (the
+    ZIP epoch) for all entries when building release APKs. The AbstractArchiveTask
+    settings are still needed for any non-AGP archive tasks in the project (e.g. the
+    :lint-checks:jar task).
+
+49. GITHUB ACTIONS 'on' KEY IS YAML BOOLEAN TRUE
+    PyYAML 5.x parses bare 'on' as the boolean True (YAML 1.1 spec). When the workflow
+    YAML is verified with python -c "yaml.safe_load(...)", the 'on' key appears as
+    Python's True, not the string 'on'. This is expected and does not affect GitHub
+    Actions parsing (GitHub Actions uses its own YAML parser that handles 'on' as a
+    keyword). Use d[True] or d.get(True) in Python scripts if you need to read the
+    triggers programmatically.
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B7 - Reproducible build verification (depends on B6)
+B8 - Fastlane metadata for Play + F-Droid (depends on B5)
+B9 - CI build workflow on every PR (depends on B6)

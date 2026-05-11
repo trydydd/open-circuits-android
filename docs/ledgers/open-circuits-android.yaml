@@ -687,6 +687,7 @@ tasks:
         Use the default proguard-android-optimize.txt only.
 
   - id: B7
+    status: done
     title: Reproducible build verification
     intent: |
       Ensure two clean builds of the same source produce the same APK
