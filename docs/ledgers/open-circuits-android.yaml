@@ -842,6 +842,7 @@ tasks:
       - Do NOT add localized metadata (en-GB, fr-FR, etc.) in v1.
 
   - id: B9
+    status: done
     title: CI — build workflow on every PR
     intent: |
       Catch regressions before merge — assemble both flavors, run

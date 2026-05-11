@@ -784,8 +784,73 @@ GOTCHAS AND HANDOFF NOTES
     is implemented, consider including this as an optional enhancement.
 
 
+B9 - CI build workflow on every PR (status: done)
+  All 7 test cases pass. File added:
+    .github/workflows/build.yml
+  Workflow configuration:
+    - Triggers: pull_request and push to main
+    - Runner: ubuntu-latest
+    - JDK: setup-java@v4, Java 21 (Temurin)
+    - SDK: caches both gradle and Android SDK
+    - Tasks: lint, test, assemble for both foss and play flavors
+    - Reproducible build verification via scripts/verify_reproducible.sh
+    - Artifact upload: APK + AAB retained 14 days
+  Test cases (all pass):
+    workflow_parses            -- python yaml.safe_load succeeds
+    triggers_on_pr_and_push    -- 'on:' has pull_request and push
+    caches_gradle              -- setup-java with cache: gradle
+    runs_lint_and_test_and_assemble -- all 6 gradle tasks present
+    (additional) upload_artifacts_14_days
+    (additional) runs_on_ubuntu_latest
+    (additional) setup_java_v4_jdk21
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+55. SDK CACHE KEY INCLUDES GRADLE WRAPPER VERSION
+    The Android SDK cache key incorporates gradle-wrapper.properties hash:
+      key: android-sdk-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+    This ensures cache invalidation if the wrapper version changes, avoiding
+    version mismatches between Gradle and the SDK tools. The restore-keys
+    fallback allows partial matches if the wrapper version changes.
+
+56. SDK SETUP CHECKS IF ALREADY CACHED
+    The sdkmanager installation step uses a conditional:
+      if [ ! -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+    This avoids re-downloading the 400+ MB cmdline-tools on every run when
+    the cache is hit. Without this check, every run would download even with
+    a valid cache (defeating the purpose of caching).
+
+57. GITHUB ACTIONS ENVIRONMENT VARIABLES VIA $GITHUB_ENV
+    The SDK setup step exports ANDROID_HOME to the workflow environment:
+      echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+    This persists the variable for all subsequent steps in the job.
+    Using `export ANDROID_HOME=...` in a run step only affects child processes
+    within that step. The $GITHUB_ENV approach is the GitHub Actions idiom.
+
+58. LINT AND TEST JOBS RUN SEQUENTIALLY, NOT IN PARALLEL
+    The workflow has separate steps for lintFoss, lintPlay, testFoss, testPlay,
+    etc., rather than combining them (e.g. ./gradlew :app:lintFoss :app:lintPlay).
+    This provides better readability in the Actions UI and allows faster failure
+    detection: if lintFoss fails, the user sees that immediately without waiting
+    for Play lint. Gradle's local build cache (~/.gradle/caches/) is persistent
+    across steps, so there is minimal redundant work.
+
+59. UPLOAD-ARTIFACT USES if: always() TO CAPTURE FAILURES
+    The artifact upload step has `if: always()`, ensuring artifacts are uploaded
+    even if earlier steps fail. Without this, a failed lint or test would prevent
+    APK/AAB artifact upload, making it harder to debug via the Actions UI.
+
+60. BUILD AND RELEASE WORKFLOWS MUST NOT MODIFY MAIN
+    The build workflow (B9) runs on pull_request and push to main, but it does
+    not commit or push any changes. Contrast with the release workflow (B10),
+    which will push APK/AAB artifacts to GitHub Releases. The build workflow is
+    pure CI (verify code quality); the release workflow is deployment (push
+    artifacts). Keeping them separate prevents accidental modification of main.
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B9 - CI build workflow on every PR (depends on B6)
 B10 - CI release workflow on tag (depends on B6, B8, B9)
 B11 - F-Droid inclusion package + privacy policy (depends on B4, B6, B8)

@@ -1,0 +1,76 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/build-cache
+            ~/android-sdk-linux
+          key: android-sdk-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            android-sdk-${{ runner.os }}-
+
+      - name: Set up Android SDK
+        run: |
+          SDK_DIR="$HOME/android-sdk"
+          if [ ! -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+            mkdir -p "$SDK_DIR/cmdline-tools"
+            curl -fsSL -o /tmp/clt.zip \
+              "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+            unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
+            mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+          fi
+          export ANDROID_HOME="$SDK_DIR"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" "build-tools;35.0.0" > /dev/null 2>&1
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+
+      - name: Run lint (foss)
+        run: ./gradlew :app:lintFossRelease
+
+      - name: Run lint (play)
+        run: ./gradlew :app:lintPlayRelease
+
+      - name: Run unit tests (foss)
+        run: ./gradlew :app:testFossReleaseUnitTest
+
+      - name: Run unit tests (play)
+        run: ./gradlew :app:testPlayReleaseUnitTest
+
+      - name: Assemble APK (foss)
+        run: ./gradlew :app:assembleFossRelease
+
+      - name: Assemble bundle (play)
+        run: ./gradlew :app:bundlePlayRelease
+
+      - name: Verify reproducible builds
+        run: ./scripts/verify_reproducible.sh
+
+      - name: Upload APKs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: |
+            app/build/outputs/apk/foss/release/app-foss-release.apk
+            app/build/outputs/bundle/playRelease/app-play-release.aab
+          retention-days: 14
