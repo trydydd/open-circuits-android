@@ -42,7 +42,21 @@ if [ -z "${ANDROID_HOME:-}" ]; then
   fi
 fi
 if [ -z "${ANDROID_HOME:-}" ]; then
-  echo "ERROR: ANDROID_HOME is not set and sdk.dir not found in local.properties."
+  for candidate in \
+    "$HOME/Library/Android/sdk" \
+    "$HOME/Android/Sdk" \
+    "$HOME/android-sdk" \
+    "/opt/android-sdk"; do
+    if [ -d "$candidate" ]; then
+      ANDROID_HOME="$candidate"
+      info "Auto-detected ANDROID_HOME: $ANDROID_HOME"
+      break
+    fi
+  done
+fi
+if [ -z "${ANDROID_HOME:-}" ]; then
+  echo "ERROR: Could not find the Android SDK. Set ANDROID_HOME, add sdk.dir to"
+  echo "       local.properties, or install Android Studio (which sets it automatically)."
   exit 1
 fi
 
