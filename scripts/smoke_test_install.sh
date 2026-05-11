@@ -35,6 +35,26 @@ for arg in "$@"; do
   esac
 done
 
+# ── Check JDK version ────────────────────────────────────────────────────────
+if ! command -v java &>/dev/null; then
+  echo "ERROR: java not found. Install JDK 21 and ensure it is on your PATH."
+  echo "  macOS/Linux: sdk install java 21-tem   (via https://sdkman.io)"
+  echo "  Other:       https://adoptium.net"
+  exit 1
+fi
+JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/{print $2}' | cut -d. -f1)
+if [ "${JAVA_VERSION:-0}" -lt 17 ]; then
+  echo "ERROR: JDK 17 or higher is required (project targets JDK 21)."
+  echo "  Detected: $(java -version 2>&1 | head -1)"
+  echo "  Install JDK 21 via SDKMAN: sdk install java 21-tem"
+  echo "  Then restart your terminal and rerun this script."
+  exit 1
+fi
+if [ "${JAVA_VERSION:-0}" -lt 21 ]; then
+  echo "WARNING: JDK 21 is recommended (detected JDK ${JAVA_VERSION})."
+  echo "  The build may succeed, but the project targets jvmTarget=21."
+fi
+
 # ── Resolve ANDROID_HOME ──────────────────────────────────────────────────────
 if [ -z "${ANDROID_HOME:-}" ]; then
   if [ -f local.properties ]; then
