@@ -82,11 +82,38 @@ A successful build produces `app/build/outputs/apk/debug/app-debug.apk`.
 
 Before building a release, sync the bundled HTML from a tagged open-circuits release:
 
-```
-./scripts/sync_content.sh <tag>
+```sh
+./scripts/sync_content.sh v0.4.0
 ```
 
-See `scripts/sync_content.sh` and `scripts/sync_content.sha256` for the pinned content version.
+This downloads the tarball from the open-circuits GitHub releases page, verifies its
+SHA256 against `scripts/sync_content.sha256`, strips the top-level directory, and
+extracts the HTML into `app/src/main/assets/html/`. Commit the result.
+
+**Bumping the content version:**
+
+1. Find the new tag in the [open-circuits releases](https://github.com/trydydd/open-circuits/releases).
+2. Download the tarball and compute its SHA256:
+   ```sh
+   curl -fL -o /tmp/oc.tar.gz \
+     https://github.com/trydydd/open-circuits/archive/refs/tags/<tag>.tar.gz
+   sha256sum /tmp/oc.tar.gz
+   ```
+3. Add a line to `scripts/sync_content.sha256`:
+   ```
+   <sha256>  <tag>
+   ```
+4. Run the sync script and commit the extracted assets:
+   ```sh
+   ./scripts/sync_content.sh <tag>
+   git add app/src/main/assets/html/
+   git commit -m "sync content to <tag>"
+   ```
+
+The `OC_LOCAL_TARBALL` environment variable skips the download and uses a local file:
+```sh
+OC_LOCAL_TARBALL=/path/to/tarball.tar.gz ./scripts/sync_content.sh <tag>
+```
 
 ## License
 

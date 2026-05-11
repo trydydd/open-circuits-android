@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- Main app theme -->
     <style name="Theme.OpenCircuits" parent="Theme.Material3.DayNight.NoActionBar" />
+
+    <!--
+      Splash screen theme — declared on MainActivity in the manifest.
+      installSplashScreen() transitions to Theme.OpenCircuits after the first
+      frame is drawn.
+      windowSplashScreenBackground: brand_cream, matching the light page bg.
+      windowSplashScreenAnimatedIcon: ic_launcher_foreground vector.
+      postSplashScreenTheme: the activity's runtime theme.
+    -->
+    <style name="Theme.OpenCircuits.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_cream</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.OpenCircuits</item>
+    </style>
+
 </resources>

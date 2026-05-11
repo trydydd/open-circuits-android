@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark-mode overrides.
+  background: oc-header-bg  rgb(38 33 29)  oklch(19% 0.014 75)
+-->
+<resources>
+    <color name="background">#26211D</color>
+</resources>
