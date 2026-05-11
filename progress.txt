@@ -1,7 +1,7 @@
 PROGRESS
 ========
 Last updated: 2026-05-11
-Branch: claude/complete-task-b3-D1TZQ
+Branch: claude/complete-task-b4-android-ABDbT
 
 
 COMPLETED
@@ -17,7 +17,7 @@ B2 - Hardened AndroidManifest + custom lint rule (status: done)
   INTERNET permission is added to the manifest. ./gradlew :app:lintDebug
   exits 0 with the clean manifest. Ledger marked done.
 
-B3 - MainActivity with WebViewAssetLoader, network interceptor, back nav (in progress)
+B3 - MainActivity with WebViewAssetLoader, network interceptor, back nav (status: done)
   All 8 Robolectric MainActivityTest cases pass alongside the existing 4
   ManifestTest cases (12 total). Files added:
     app/src/main/java/org/hearth/circuits/MainActivity.kt
@@ -25,10 +25,19 @@ B3 - MainActivity with WebViewAssetLoader, network interceptor, back nav (in pro
     app/src/main/assets/.gitkeep
     app/src/test/java/org/hearth/circuits/MainActivityTest.kt
     app/src/androidTest/java/org/hearth/circuits/WebViewBehaviorTest.kt
-  Espresso tests (WebViewBehaviorTest) cannot run until B4 supplies the
-  bundled HTML assets. The test structure is correct but launches_and_renders,
-  navigation_link_works, and localstorage_persists_across_restart will fail
-  until app/src/main/assets/html/index.html exists.
+  Espresso tests (WebViewBehaviorTest) require a real tarball synced via B4
+  before they can run (index.html must exist at assets/html/index.html).
+
+B4 - Content sync script + assets folder (status: done)
+  All 3 automated scripted test cases pass. Files added:
+    scripts/sync_content.sh   (executable; set -euo pipefail)
+    scripts/sync_content.sha256  (sha256 entries, 'test' dummy entry included)
+    tests/test_sync_content.sh   (test runner for cases 1-3)
+  README.md updated with content-version-bump instructions.
+  Cases 4 (extraction_target_correct) and 5 (tarball_strips_top_level) require
+  a real tarball and must be verified manually after a real sync run.
+  The 'test' entry in sync_content.sha256 uses an all-zero dummy hash so
+  case 3 (SHA256 mismatch) works without network access.
 
 
 GOTCHAS AND HANDOFF NOTES
@@ -161,9 +170,9 @@ GOTCHAS AND HANDOFF NOTES
 18. WEBVIEWASSETLOADER PATH CONVENTION
     The asset loader is mounted at /assets/ so the virtual URL is:
       https://appassets.androidplatform.net/assets/html/index.html
-    The path handler maps to app/src/main/assets/html/. If B4 changes
-    the extraction layout (e.g. strips or adds a directory level), update
-    this URL in MainActivity.onCreate and the matching assertion in
+    The path handler maps to app/src/main/assets/html/. If a future task
+    changes the extraction layout (e.g. strips or adds a directory level),
+    update this URL in MainActivity.onCreate and the matching assertion in
     MainActivityTest.webview_loads_index.
 
 19. NETWORK INTERCEPTOR RETURNS 403, NOT null
@@ -206,17 +215,23 @@ GOTCHAS AND HANDOFF NOTES
     saveState/restoreState write/read the history index to the Bundle using
     internal keys "HISTORY" and "HISTORY_INDEX".
 
-24. ESPRESSO TESTS REQUIRE REAL ASSETS — CANNOT RUN UNTIL B4 IS DONE
+24. ESPRESSO TESTS REQUIRE REAL ASSETS — CANNOT RUN UNTIL CONTENT IS SYNCED
     WebViewBehaviorTest instrumented tests evaluate document.title and
     localStorage via evaluateJavascript. They need a real WebView rendering
-    real HTML. The test structure is correct but all three cases will fail
-    with an empty/error page until B4's sync_content.sh has been run and
-    app/src/main/assets/html/index.html committed.
+    real HTML. Run `./scripts/sync_content.sh <tag>`, commit the assets, then
+    run the instrumented tests on a device or emulator with airplane mode ON.
+
+25. SYNC_CONTENT.SH SHA256 ENTRY FORMAT
+    scripts/sync_content.sha256 uses the same two-space format as sha256sum:
+      <64-hex-chars>  <tag>
+    The 'test' entry uses an all-zero dummy hash so the SHA256 mismatch test
+    (case 3) works offline. When pinning a real release, run:
+      sha256sum /tmp/oc.tar.gz | sed "s|  .*|  <tag>|"
+    and append the result. The script greps for "  <tag>$" (two spaces + tag
+    anchored at end of line), so partial tag matches cannot collide.
 
 
 NEXT TASKS (from ledger)
 ------------------------
-B4 - Content sync script + assets folder (depends on B1)
-     *** Must be done next. B3 Espresso tests block on it. ***
 B5 - Adaptive launcher icons, splash, theme colors (depends on B1)
 B6 - Build flavors (play, foss) + signing config (depends on B3)

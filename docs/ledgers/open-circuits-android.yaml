@@ -420,6 +420,7 @@ tasks:
         platform is fine.
 
   - id: B4
+    status: done
     title: Content sync script + assets folder bootstrap
     intent: |
       Pull a tagged open-circuits release tarball, verify SHA256, and

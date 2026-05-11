@@ -1,0 +1,5 @@
+# SHA256 entries for open-circuits release tarballs.
+# Format (matches sha256sum output): <sha256>  <tag>
+# Add a new line when pinning a new content release.
+# To generate: sha256sum /path/to/tarball.tar.gz | sed "s|  .*|  v0.x.y|"
+0000000000000000000000000000000000000000000000000000000000000000  test
