@@ -1,0 +1,64 @@
+name: Reproducible Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify-reproducible:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build 1
+        run: ./gradlew :app:assembleFossRelease --no-daemon
+
+      - name: Save APK from build 1
+        run: cp app/build/outputs/apk/foss/release/app-foss-release.apk /tmp/build-a.apk
+
+      - name: Build 2 (clean, no build cache)
+        run: ./gradlew clean :app:assembleFossRelease --no-daemon --no-build-cache
+
+      - name: Save APK from build 2
+        run: cp app/build/outputs/apk/foss/release/app-foss-release.apk /tmp/build-b.apk
+
+      - name: Compare APK contents
+        run: |
+          # Check ZIP entry CRC32 + sizes + names match
+          MANIFEST_A="$(unzip -lv /tmp/build-a.apk | awk 'NF>=8{print $7,$1,$8}' | sort)"
+          MANIFEST_B="$(unzip -lv /tmp/build-b.apk | awk 'NF>=8{print $7,$1,$8}' | sort)"
+          if [ "$MANIFEST_A" != "$MANIFEST_B" ]; then
+            echo "MISMATCH: ZIP entry CRC32/size/name lists differ."
+            diff <(echo "$MANIFEST_A") <(echo "$MANIFEST_B") || true
+            exit 1
+          fi
+          echo "ZIP entries (CRC32 + sizes + names): identical"
+
+          # Extract and compare SHA256 of every non-META-INF file
+          unzip -q /tmp/build-a.apk -d /tmp/apk-a
+          unzip -q /tmp/build-b.apk -d /tmp/apk-b
+          HASH_A="$(find /tmp/apk-a -type f | grep -v '/META-INF/' | sort \
+                    | xargs sha256sum | sed 's|/tmp/apk-a/||' | sort)"
+          HASH_B="$(find /tmp/apk-b -type f | grep -v '/META-INF/' | sort \
+                    | xargs sha256sum | sed 's|/tmp/apk-b/||' | sort)"
+          if [ "$HASH_A" != "$HASH_B" ]; then
+            echo "MISMATCH: extracted file contents differ."
+            diff <(echo "$HASH_A") <(echo "$HASH_B") || true
+            exit 1
+          fi
+          echo "Extracted file SHA256 (non-META-INF): identical"
+          echo "OK: builds are content-identical."

@@ -1,7 +1,7 @@
 PROGRESS
 ========
 Last updated: 2026-05-11
-Branch: claude/complete-task-b4-android-ABDbT (B5 added here)
+Branch: claude/complete-b6-android-K75S9
 
 
 COMPLETED
@@ -549,6 +549,160 @@ GOTCHAS AND HANDOFF NOTES
     a Drawable resource."
 
 
+B6 - Build flavors (play, foss) + signing config (status: done)
+  All 18 Robolectric unit test cases pass per flavor (36 total across foss and play release
+  variants). Both flavors assemble/bundle. No GMS/Firebase detected. Files added/modified:
+    app/build.gradle.kts   (flavorDimensions, productFlavors, signingConfigs, assertNoGms)
+    .gitignore             (added /keystore.properties)
+    keystore.example.properties  (committed template; real file is gitignored)
+    app/src/test/java/org/hearth/circuits/FlavorParityTest.kt
+  Scripted cases from ledger:
+    assemble_play_release_succeeds  -- ./gradlew :app:bundlePlayRelease exits 0
+    assemble_foss_release_succeeds  -- ./gradlew :app:assembleFossRelease exits 0
+    foss_apk_no_gms                 -- grep exits 1 (no GMS in foss APK)
+    play_aab_no_gms                 -- grep exits 1 (no GMS in play AAB)
+  assertNoGms is bound to :app:check lifecycle.
+  FlavorParityTest.identical_class_files verifies no flavor-specific src/ dirs exist;
+  also compares kotlin class outputs if both post-build dirs are present.
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+37. JAVA PACKAGE SHADOWED INSIDE android {} DSL BLOCK
+    The kotlin identifier `java` is shadowed inside the android {} block by AGP's
+    java compile options extension. `java.util.Properties()` inside android {}
+    resolves to "AGP java extension".util which fails. Fix: add
+    `import java.util.Properties` at the top of the .kts file and load the
+    properties file at the top level (before android {}), then reference the
+    captured value inside the block.
+
+38. ASSIGNING release SIGNING CONFIG IN buildTypes
+    signingConfigs.getByName("debug") is always available (AGP creates it).
+    When keystore.properties is absent (CI without secrets), fall back to debug
+    signing so `assembleFossRelease` still succeeds. The release signingConfig
+    block is left with null fields when the props file is absent; the buildTypes
+    block selects debug vs release based on whether the file exists.
+
+39. assertNoGms USES DECLARED DEPS, NOT RESOLVED CLASSPATH
+    The assertNoGms task checks ExternalDependency.group in all configurations
+    at configuration time rather than resolving classpaths at execution time.
+    This is configuration-cache compatible (no Task.project access at execution time).
+    Using FileCollection inputs with configurations caused variant ambiguity errors
+    (multiple matched variants); resolved-at-configuration-time artifact scanning
+    caused "Task.project accessed at execution time" warnings. Declared-dep
+    checking is simpler, cache-safe, and sufficient because GMS would only enter
+    via an explicit dependency, never transitively in this offline app.
+
+40. FLAVOR-SPECIFIC CONFIGURATIONS ARE NAMED {flavor}{BuildType}CompileClasspath
+    After adding productFlavors, AGP creates variant-specific configurations like
+    fossDebugCompileClasspath, fossReleaseCompileClasspath, playDebugCompileClasspath,
+    playReleaseCompileClasspath. These are not available until after AGP processes
+    the android {} block. Accessing them in tasks.register {} before afterEvaluate
+    works, but using them as FileCollection inputs triggers variant ambiguity errors.
+
+41. notCompatibleWithConfigurationCache DISCARDS THE ENTIRE BUILD'S CACHE ENTRY
+    `task.notCompatibleWithConfigurationCache(reason)` does not just skip caching
+    for that one task; it causes the entire configuration cache entry for that
+    WHOLE BUILD to be discarded. So if assertNoGms were run as part of `./gradlew
+    check`, the cache for the entire check invocation would be thrown away and all
+    93+ cache problems would be reported. Every subsequent `./gradlew check` run
+    would be a cold start. This is why assertNoGms instead captures dependency
+    groups at configuration time (no project access in doLast) — keeping the check
+    invocation fully cache-compatible.
+
+42. PASSING CONFIGURATION-TIME DATA TO doLast WITHOUT ACCESSING project
+    Inside `tasks.register("foo") { ... }`, the lambda body is a configuration-time
+    action and can access `project` freely. `doLast { ... }` is execution-time and
+    must NOT access `project` when the configuration cache is enabled. The idiomatic
+    Gradle pattern to bridge the two:
+      val data: SomeType = computeAtConfigurationTime()  // uses project.*
+      inputs.property("myKey", data)
+      doLast {
+          val d = inputs.properties["myKey"] as SomeType  // safe: task.inputs, not project
+      }
+    For collections, `inputs.property` requires the value to be serializable (String,
+    Int, List<String>, etc.). Complex objects must be reduced to primitives first.
+
+43. flavorDimensions SYNTAX AND REQUIRED dimension ON EACH FLAVOR
+    In Kotlin DSL, flavor dimensions must be appended with `+=`:
+      flavorDimensions += "distribution"    // correct
+      flavorDimensions = listOf(...)        // also works but verbose
+    Each productFlavor block must explicitly set `dimension = "distribution"`.
+    Omitting it causes: "All flavors must now belong to a named flavor dimension.
+    Learn more at https://d.android.com/r/tools/flavorDimensions-missing-error-message.html"
+
+44. BUILD OUTPUT PATHS AFTER ADDING FLAVORS
+    APK:  app/build/outputs/apk/foss/release/app-foss-release.apk
+    AAB:  app/build/outputs/bundle/playRelease/app-play-release.aab
+    These paths are tested by the scripted cases (foss_apk_no_gms, play_aab_no_gms)
+    and referenced in B9/B10 CI workflow tasks. The flavor name and build type appear
+    as separate directory segments for APKs; for AABs the flavor+type are joined
+    (playRelease). This asymmetry is AGP behaviour, not a project choice.
+
+45. Properties().apply { load(...) } SHADOWING INSIDE android {} LAMBDAS
+    Even after adding `import java.util.Properties`, calling
+    `Properties().apply { load(file.inputStream()) }` inside the android {} block
+    fails because `load` is resolved against the lambda receiver (an AGP DSL object),
+    not `java.util.Properties`. The fix is `also { props -> props.load(...) }` (explicit
+    receiver name), or simply load the properties before the android {} block at
+    top-level scope. Top-level loading is cleaner and avoids all receiver shadowing.
+
+
+B7 - Reproducible build verification (status: done)
+  Both scripted cases pass. Files added/modified:
+    scripts/verify_reproducible.sh    (executable; set -euo pipefail)
+    .github/workflows/reproducible.yml
+    app/build.gradle.kts              (AbstractArchiveTask reproducibility settings)
+  Scripted cases:
+    two_clean_builds_match  -- ./scripts/verify_reproducible.sh exits 0
+    workflow_runs_on_pr     -- YAML has on pull_request + job verify-reproducible
+  Verification is CONTENT-based (not byte-level): compares ZIP entry CRC32/sizes/names
+  and sha256 of every extracted non-META-INF file. See gotcha 46 for why byte-level
+  fails and why content comparison is the correct criterion.
+
+
+GOTCHAS AND HANDOFF NOTES
+--------------------------
+
+46. AGP PKDS SIGNING BLOCK IS NON-DETERMINISTIC BY DESIGN
+    AGP (8.7+) embeds a PKDS (0x504b4453) block in the APK signing block alongside
+    the standard V2 signature (0x7109871a). The PKDS block ("dependency info") contains
+    a random nonce per signing operation, making byte-level APK identity impossible
+    even when the source, toolchain, and signing key are all identical. The V2 signature
+    block itself IS deterministic (RSA-PKCS1-v1.5 with the debug key). The PKDS block
+    lives outside the ZIP entries — unzip -lv CRC32 comparison is therefore unaffected.
+    Content-level reproducibility (all extracted files identical) is what F-Droid verifies
+    and what the verification script checks.
+
+47. verify_reproducible.sh USES TWO CHECKS IN SEQUENCE
+    (a) unzip -lv: compares CRC32, uncompressed size, and filename for every ZIP entry
+        in the central directory. Fast, catches ordering and content mismatches.
+    (b) sha256sum of extracted non-META-INF files: confirms byte-for-byte identity of
+        every code/resource/asset file. Excludes META-INF/ (signature files), which are
+        stripped by F-Droid before comparison. Together these two checks satisfy F-Droid's
+        reproducibility definition without being blocked by the PKDS nonce issue.
+
+48. AbstractArchiveTask SETTINGS DO NOT AFFECT AGP'S APK PACKAGER
+    tasks.withType<AbstractArchiveTask>().configureEach { isPreserveFileTimestamps=false;
+    isReproducibleFileOrder=true } fixes timestamps and ordering in Gradle's own Zip/Jar
+    tasks (e.g. the lint-checks.jar). AGP's packageFossRelease task is a custom
+    PackageAndroidArtifact task that does NOT extend AbstractArchiveTask. AGP controls
+    its own ZIP timestamp handling internally; it already writes 1980-01-01 00:00 (the
+    ZIP epoch) for all entries when building release APKs. The AbstractArchiveTask
+    settings are still needed for any non-AGP archive tasks in the project (e.g. the
+    :lint-checks:jar task).
+
+49. GITHUB ACTIONS 'on' KEY IS YAML BOOLEAN TRUE
+    PyYAML 5.x parses bare 'on' as the boolean True (YAML 1.1 spec). When the workflow
+    YAML is verified with python -c "yaml.safe_load(...)", the 'on' key appears as
+    Python's True, not the string 'on'. This is expected and does not affect GitHub
+    Actions parsing (GitHub Actions uses its own YAML parser that handles 'on' as a
+    keyword). Use d[True] or d.get(True) in Python scripts if you need to read the
+    triggers programmatically.
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B6 - Build flavors (play, foss) + signing config (depends on B3)
+B8 - Fastlane metadata for Play + F-Droid (depends on B5)
+B9 - CI build workflow on every PR (depends on B6)
