@@ -206,6 +206,7 @@ tasks:
       - Do NOT add android.useAndroidX=false. Must be true.
 
   - id: B2
+    status: done
     title: Hardened AndroidManifest — no INTERNET, no network state, locale
     intent: |
       Make the absence of network capabilities a build-time invariant,
