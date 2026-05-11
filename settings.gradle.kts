@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "open-circuits-android"
 include(":app")
+include(":lint-checks")

@@ -37,6 +37,16 @@ android {
     buildFeatures {
         buildConfig = false
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
+    lint {
+        abortOnError = true
+    }
 }
 
 dependencies {
@@ -44,6 +54,8 @@ dependencies {
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.webkit)
     implementation(libs.material)
+
+    lintChecks(project(":lint-checks"))
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

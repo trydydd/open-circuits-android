@@ -1,7 +1,7 @@
 PROGRESS
 ========
 Last updated: 2026-05-11
-Branch: claude/complete-android-ledger-task-dBPD4
+Branch: claude/complete-b2-android-oMMzT
 
 
 COMPLETED
@@ -9,6 +9,13 @@ COMPLETED
 B1 - Repo bootstrap (status: done)
   All scripted test cases pass. APK installs and launches without crashing
   on an emulator. Ledger marked done.
+
+B2 - Hardened AndroidManifest + custom lint rule (status: done)
+  All four Robolectric/ManifestTest cases pass (no_internet_permission,
+  cleartext_traffic_disabled, backup_disabled, launcher_intent_filter).
+  Custom lint rule NoInternetAllowed (id) fires with BUILD FAILED when
+  INTERNET permission is added to the manifest. ./gradlew :app:lintDebug
+  exits 0 with the clean manifest. Ledger marked done.
 
 
 GOTCHAS AND HANDOFF NOTES
@@ -77,17 +84,45 @@ GOTCHAS AND HANDOFF NOTES
     and boots headless with swiftshader_indirect GPU. Needs KVM on Linux.
 
 
+11. LINT-API VERSION CONVENTION
+    com.android.tools.lint:lint-api version = AGP major + 23, same minor/patch.
+    AGP 8.7.3 -> lint-api 31.7.3. Added to libs.versions.toml as lintApi.
+    The lint-checks module uses java-library + kotlin-jvm plugin (NOT
+    com.android.library). It must declare `compileOnly(libs.lint.api)` and
+    include META-INF/services/com.android.tools.lint.client.api.IssueRegistry
+    pointing at the IssueRegistry subclass.
+
+12. KOTLIN-JVM PLUGIN IN MULTI-MODULE BUILDS
+    Adding alias(libs.plugins.kotlin.jvm) to a submodule fails with
+    "plugin already on classpath with unknown version" unless the root
+    build.gradle.kts also declares `alias(libs.plugins.kotlin.jvm) apply false`.
+    This is required so Gradle can resolve the version for compatibility checking.
+
+13. ANDROID SDK NOT PRE-INSTALLED IN FRESH SESSIONS
+    The Android SDK is not available in new Claude Code sessions. Install it:
+      mkdir -p /root/android-sdk/cmdline-tools
+      curl -o /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+      unzip /tmp/clt.zip -d /root/android-sdk/cmdline-tools
+      mv /root/android-sdk/cmdline-tools/cmdline-tools /root/android-sdk/cmdline-tools/latest
+      export ANDROID_HOME=/root/android-sdk
+      yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0"
+    Then always `export ANDROID_HOME=/root/android-sdk` before Gradle commands.
+
+14. ROBOLECTRIC TESTS NEED isIncludeAndroidResources = true
+    Without `testOptions { unitTests { isIncludeAndroidResources = true } }` in
+    app/build.gradle.kts, Robolectric cannot load the merged manifest and
+    resources. ManifestTest.kt uses @Config(sdk = [34]) to avoid potential
+    API 35 shadow download issues.
+
+15. LINTCHECKS CONFIGURATION
+    `lintChecks(project(":lint-checks"))` in app/build.gradle.kts is the correct
+    way to wire a java-library lint module. The lint jar (built by :lint-checks:jar)
+    is picked up automatically when running :app:lintDebug or :app:lintRelease.
+
+
 NEXT TASKS (from ledger)
 ------------------------
-B2 - Hardened AndroidManifest + custom lint rule (depends on B1)
 B4 - Content sync script + assets folder (depends on B1)
 B5 - Adaptive launcher icons, splash, theme colors (depends on B1)
 
-B2 and B4 can be worked in parallel. B3 depends on both B2 and B4, so those
-two should be prioritised first.
-
-B2 note: requires a new Gradle module `lint-checks` wired via the lintChecks
-configuration. This is the first time settings.gradle.kts gains an include()
-beyond :app. The lint module needs its own build.gradle.kts with the Android
-lint API dep. Robolectric is already in the version catalog for the
-ManifestTest.kt unit tests.
+B4 should be done before B3. B3 depends on both B2 (done) and B4.
