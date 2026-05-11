@@ -95,10 +95,15 @@ class MainActivityTest {
     fun back_button_uses_web_history() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
-                // On first load there is only one history entry, so canGoBack() is false.
-                // Pressing back should finish the activity.
+                val shadow = Shadows.shadowOf(activity.webView)
+
+                // Default state: canGoBack() is false (no prior history).
                 assertFalse("No back history on first load", activity.webView.canGoBack())
+                val goBackBefore = shadow.goBackInvocations
+
                 activity.onBackPressedDispatcher.onBackPressed()
+
+                assertEquals("goBack() must not be called when history is empty", goBackBefore, shadow.goBackInvocations)
                 assertTrue("Activity must finish when web history is empty", activity.isFinishing)
             }
         }
@@ -108,14 +113,17 @@ class MainActivityTest {
     fun back_button_goes_back_in_web_history() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
-                // Loading a second URL builds history so canGoBack() becomes true.
-                activity.webView.loadUrl(
-                    "https://appassets.androidplatform.net/assets/html/DC/DC_1.html"
-                )
-                assertTrue("Should be able to go back after second load", activity.webView.canGoBack())
+                val shadow = Shadows.shadowOf(activity.webView)
 
+                // Use the shadow API to put the WebView into a "can go back" state.
+                @Suppress("DEPRECATION")
+                shadow.setCanGoBack(true)
+                assertTrue("canGoBack must be true after setup", activity.webView.canGoBack())
+
+                val goBackBefore = shadow.goBackInvocations
                 activity.onBackPressedDispatcher.onBackPressed()
 
+                assertEquals("goBack() must be called exactly once", goBackBefore + 1, shadow.goBackInvocations)
                 assertFalse("Activity must not finish when navigating back in web history", activity.isFinishing)
             }
         }
