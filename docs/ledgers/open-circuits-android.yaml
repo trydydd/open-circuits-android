@@ -295,6 +295,7 @@ tasks:
       - Do NOT add foreground service permissions.
 
   - id: B3
+    status: done
     title: MainActivity — WebViewAssetLoader, no-network interceptor, back nav
     intent: |
       The actual app — a single Activity that hosts a WebView pointed
