@@ -30,14 +30,20 @@ jobs:
 
       - name: Set up Android SDK
         run: |
-          SDK_DIR="$HOME/android-sdk"
-          if [ ! -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
-            mkdir -p "$SDK_DIR/cmdline-tools"
-            curl -fsSL -o /tmp/clt.zip \
-              "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-            unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
-            mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+          # Rely on actions runner's preinstalled Android SDK if available
+          SDK_DIR="${ANDROID_HOME:-}"
+          if [ -z "$SDK_DIR" ]; then
+            # Fallback: use standard location if runner doesn't provide ANDROID_HOME
+            SDK_DIR="$HOME/android-sdk"
+            if [ ! -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+              mkdir -p "$SDK_DIR/cmdline-tools"
+              curl -fsSL -o /tmp/clt.zip \
+                "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+              unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
+              mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+            fi
           fi
+          # Ensure required platforms and build-tools are installed
           export ANDROID_HOME="$SDK_DIR"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-35" "build-tools;35.0.0" > /dev/null 2>&1
