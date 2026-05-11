@@ -111,6 +111,7 @@ tasks:
 
   - id: B1
     title: Repo bootstrap — Gradle, AGP, Kotlin, version catalog, .gitignore
+    status: done
     intent: |
       Establish the build skeleton for an Android project that
       compiles to an empty APK. Pins all toolchain versions for
