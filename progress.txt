@@ -761,6 +761,28 @@ GOTCHAS AND HANDOFF NOTES
     is needed. The GITHUB_TOKEN, RELEASE_TAG, and VERSION_CODE environment
     variables must be set by the caller (CI workflow).
 
+54. AUTOMATED SCREENSHOT CAPTURE VIA ESPRESSO TESTS (FUTURE ENHANCEMENT)
+    The placeholder PNG screenshots in B8 can be automated by extending the
+    existing WebViewBehaviorTest instrumented tests. Approach:
+      1. Add androidx.test.uiautomator and androidx.test:runner to app deps
+      2. Add screenshot capture methods to WebViewBehaviorTest:
+         - Screenshot.capture("1_home").process().save() after app launch
+         - Screenshot.capture("2_chapter") after navigating to a chapter
+         - Screenshot.capture("3_search") after search results
+         - Screenshot.capture("4_settings") after opening settings
+      3. Configure output directory in app/build.gradle.kts:
+         testOptions { execution 'ANDROIDX_TEST_ORCHESTRATOR' }
+      4. In CI (B10 release workflow), after building the APK:
+         - Run ./gradlew :app:connectedAndroidTest --enable-screenshot
+         - Extract images from app/build/outputs/androidTest-results/
+         - Copy to fastlane/metadata/android/en-US/images/phoneScreenshots/
+         - Commit as part of the release
+    Advantages: captures real app UI (not placeholders), reproducible
+    (same emulator state each time), integrates with existing test suite.
+    This is deferred because it requires adding test orchestration and
+    a CI emulator setup, which is non-trivial. When B10 (release workflow)
+    is implemented, consider including this as an optional enhancement.
+
 
 NEXT TASKS (from ledger)
 ------------------------
