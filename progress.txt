@@ -111,15 +111,27 @@ GOTCHAS AND HANDOFF NOTES
     build.gradle.kts also declares `alias(libs.plugins.kotlin.jvm) apply false`.
     This is required so Gradle can resolve the version for compatibility checking.
 
-13. ANDROID SDK NOT PRE-INSTALLED IN FRESH SESSIONS
-    The Android SDK is not available in new Claude Code sessions. Install it:
-      mkdir -p /root/android-sdk/cmdline-tools
-      curl -o /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-      unzip /tmp/clt.zip -d /root/android-sdk/cmdline-tools
-      mv /root/android-sdk/cmdline-tools/cmdline-tools /root/android-sdk/cmdline-tools/latest
-      export ANDROID_HOME=/root/android-sdk
-      yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0"
-    Then always `export ANDROID_HOME=/root/android-sdk` before Gradle commands.
+13. SESSION-START: INSTALL THE ANDROID SDK BEFORE ANY GRADLE COMMAND
+    The SDK is not pre-installed. Run this at the top of every new session
+    before touching Gradle. Uses $HOME so it works regardless of user:
+
+      SDK_DIR="$HOME/android-sdk"
+      mkdir -p "$SDK_DIR/cmdline-tools"
+      curl -fsSL -o /tmp/clt.zip \
+        "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+      unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
+      mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+      export ANDROID_HOME="$SDK_DIR"
+      yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+        "platforms;android-35" "build-tools;35.0.0"
+      echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+    local.properties is gitignored and must be (re)created every session.
+    export ANDROID_HOME before every ./gradlew invocation, or add it to
+    the shell profile for the session. AGP also auto-downloads build-tools
+    34.0.0 and platform-tools on first use — this is expected and fine.
+    The cmdline-tools version (11076708) corresponds to SDK tools 12.0;
+    check https://developer.android.com/studio if this URL ever 404s.
 
 14. ROBOLECTRIC TESTS NEED isIncludeAndroidResources = true
     Without `testOptions { unitTests { isIncludeAndroidResources = true } }` in
@@ -133,12 +145,11 @@ GOTCHAS AND HANDOFF NOTES
     is picked up automatically when running :app:lintDebug or :app:lintRelease.
 
 
-16. ANDROID SDK INSTALLED AT /home/user/android-sdk
-    In this session the SDK was installed to /home/user/android-sdk (not
-    /root/android-sdk as noted in gotcha 13). local.properties now points
-    there. The cmdline-tools version used was 11076708. Platforms and
-    build-tools installed: android-35, build-tools 35.0.0. AGP also auto-
-    pulled build-tools 34.0.0 and platform-tools 37.0.0.
+16. local.properties IS GITIGNORED AND EPHEMERAL
+    The file is listed in .gitignore and is never committed. It must be
+    regenerated at the start of each session as part of the SDK install
+    step in gotcha 13. Do not attempt to read a stale sdk.dir path from
+    it — it will either be absent or point at a path from a previous session.
 
 17. MAINACTIVITY EXTENDS ComponentActivity, NOT AppCompatActivity
     The activity uses androidx.activity.ComponentActivity directly.
