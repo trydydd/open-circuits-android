@@ -3,3 +3,4 @@
 # Add a new line when pinning a new content release.
 # To generate: sha256sum /path/to/tarball.tar.gz | sed "s|  .*|  v0.x.y|"
 0000000000000000000000000000000000000000000000000000000000000000  test
+f0a18eb564e0ff6d3dfdea0689199b42307dfd626f17815d36d2d2af7159432b  v1.1.0

@@ -50,13 +50,14 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
 
-      - name: Sync content from latest open-circuits release
+      - name: Sync content from latest registered open-circuits release
         run: |
           if [ ! -f "app/src/main/assets/html/index.html" ]; then
-            echo "Content not found; syncing from latest open-circuits release..."
-            LATEST=$(curl -s https://api.github.com/repos/trydydd/open-circuits/releases/latest | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+            echo "Content not found; syncing from latest registered release..."
+            # Extract latest version from SHA256 file (skip test entry and comments)
+            LATEST=$(grep -v '^\s*#' scripts/sync_content.sha256 | grep -v '^\s*$' | grep -v 'test' | tail -1 | awk '{print $NF}')
             if [ -z "$LATEST" ]; then
-              echo "Failed to determine latest release; skipping sync"
+              echo "No registered versions found in scripts/sync_content.sha256"
               exit 1
             fi
             echo "Syncing content from $LATEST"
