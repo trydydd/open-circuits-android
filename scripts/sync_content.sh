@@ -34,7 +34,7 @@ if [[ -n "${OC_LOCAL_TARBALL:-}" ]]; then
     tarball="$OC_LOCAL_TARBALL"
 else
     tarball="/tmp/oc-${TAG}.tar.gz"
-    url="${UPSTREAM}/archive/refs/tags/${TAG}.tar.gz"
+    url="${UPSTREAM}/releases/download/${TAG}/open-circuits-${TAG}.tar.gz"
     printf 'Downloading %s\n' "$url" >&2
     curl --fail --location --no-progress-meter -o "$tarball" "$url"
 fi
@@ -47,9 +47,11 @@ if [[ "$actual_sha" != "$expected_sha" ]]; then
     exit 1
 fi
 
-# Clean and extract
+# Clean and extract to assets directory
 rm -rf "$ASSETS_DIR"
 mkdir -p "$ASSETS_DIR"
+
+# Extract release tarball, stripping the top-level directory (open-circuits-vX.Y.Z/)
 tar --strip-components=1 -C "$ASSETS_DIR" -xzf "$tarball"
 
 printf 'Content synced to %s\n' "$ASSETS_DIR" >&2
