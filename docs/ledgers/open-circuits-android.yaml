@@ -893,7 +893,7 @@ tasks:
       - Do NOT cache build/ outputs (only gradle and SDK).
 
   - id: B9.5
-    status: in_progress
+    status: done
     title: UI polish — status bar insets, safe area layout
     intent: |
       Fix UI collision with system status bar (time, signal, battery).
