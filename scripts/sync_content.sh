@@ -34,7 +34,7 @@ if [[ -n "${OC_LOCAL_TARBALL:-}" ]]; then
     tarball="$OC_LOCAL_TARBALL"
 else
     tarball="/tmp/oc-${TAG}.tar.gz"
-    url="${UPSTREAM}/archive/refs/tags/${TAG}.tar.gz"
+    url="${UPSTREAM}/releases/download/${TAG}/open-circuits-${TAG}.tar.gz"
     printf 'Downloading %s\n' "$url" >&2
     curl --fail --location --no-progress-meter -o "$tarball" "$url"
 fi
@@ -47,9 +47,22 @@ if [[ "$actual_sha" != "$expected_sha" ]]; then
     exit 1
 fi
 
-# Clean and extract
+# Extract to temp directory to inspect structure
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf '$TEMP_DIR'" EXIT
+tar --strip-components=1 -C "$TEMP_DIR" -xzf "$tarball"
+
+# Move content to final location
+# If output/html/ exists (pre-built structure), use that; otherwise use root
 rm -rf "$ASSETS_DIR"
 mkdir -p "$ASSETS_DIR"
-tar --strip-components=1 -C "$ASSETS_DIR" -xzf "$tarball"
+if [[ -d "$TEMP_DIR/output/html" && -f "$TEMP_DIR/output/html/index.html" ]]; then
+    cp -r "$TEMP_DIR/output/html/." "$ASSETS_DIR/"
+elif [[ -f "$TEMP_DIR/index.html" ]]; then
+    cp -r "$TEMP_DIR/." "$ASSETS_DIR/"
+else
+    printf 'ERROR: Could not locate index.html in tarball structure\n' >&2
+    exit 1
+fi
 
 printf 'Content synced to %s\n' "$ASSETS_DIR" >&2

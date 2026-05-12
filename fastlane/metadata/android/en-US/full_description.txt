@@ -1,0 +1,21 @@
+Open Circuits is a self-contained electronics reference that runs entirely on your device. No internet connection is ever required.
+
+The content covers six volumes of practical electronics: DC fundamentals, AC circuits, semiconductors, digital logic, signals, and power. Each chapter includes worked examples and circuit diagrams rendered from the bundled HTML.
+
+What it does:
+- Covers resistors, capacitors, inductors, diodes, transistors, op-amps, logic gates, and more
+- Full-text search across all chapters
+- Bookmarks and reading position saved between sessions
+- Works in airplane mode, on the subway, in the field
+
+What it does not do:
+- No internet requests. The app holds no INTERNET permission.
+- No tracking, no analytics, no crash reporting
+- No accounts, no sign-in, no cloud sync
+- No ads
+
+The app is a thin native wrapper around the open-circuits HTML content. The WebView loads the bundled site from local assets; no data leaves the device.
+
+Source code is on GitHub under GPL-3.0. Builds are reproducible: two clean builds of the same source produce the same APK bytes.
+
+Compatible with Android 8.0 and later.

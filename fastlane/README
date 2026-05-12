@@ -1,0 +1,45 @@
+Fastlane metadata for Open Circuits Android.
+
+## Screenshot capture
+
+Screenshots are stored in metadata/android/en-US/images/phoneScreenshots/.
+They should be taken on a Pixel 6 emulator (API 35, 1080x2400) with airplane
+mode ON to confirm offline operation.
+
+To regenerate:
+
+1. Start a Pixel 6 emulator via Android Studio or:
+     avdmanager create avd -n pixel6 -k "system-images;android-35;default;x86_64" \
+       --device "pixel_6"
+     emulator -avd pixel6 -no-audio -no-window -gpu swiftshader_indirect &
+
+2. Enable airplane mode on the emulator:
+     adb shell cmd connectivity airplane-mode enable
+
+3. Install the debug APK:
+     ./gradlew :app:assembleFossDebug
+     adb install app/build/outputs/apk/foss/debug/app-foss-debug.apk
+
+4. Launch and take screenshots:
+     adb shell am start -n org.hearth.circuits/.MainActivity
+     # Navigate to desired screen, then:
+     adb exec-out screencap -p > fastlane/metadata/android/en-US/images/phoneScreenshots/1.png
+     # Repeat for screens 2-4
+
+Recommended screens:
+  1.png  Home / table of contents
+  2.png  Chapter mid-scroll (DC_1 or similar)
+  3.png  Search results
+  4.png  Settings popover open
+
+## Feature graphic
+
+featureGraphic.png must be exactly 1024x500. To regenerate with ImageMagick:
+    convert -size 1024x500 xc:'#F6F3EB' \
+      -fill '#935F16' \
+      -draw "rectangle 0,0 1024,48" \
+      -draw "rectangle 0,492 1024,500" \
+      -font DejaVu-Sans-Bold -pointsize 48 \
+      -fill '#935F16' -gravity center \
+      -annotate 0 'Open Circuits' \
+      fastlane/metadata/android/en-US/images/featureGraphic.png
