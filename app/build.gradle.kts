@@ -31,6 +31,13 @@ android {
                 storePassword = keystoreProps["keystorePassword"] as String
                 keyAlias = keystoreProps["keyAlias"] as String
                 keyPassword = keystoreProps["keyPassword"] as String
+            } else {
+                // In CI environments without keystore.properties, use debug signing
+                // B10 release workflow will provide proper signing config via secrets
+                storeFile = null
+                storePassword = null
+                keyAlias = null
+                keyPassword = null
             }
         }
     }

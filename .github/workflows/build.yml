@@ -81,8 +81,8 @@ jobs:
       - name: Assemble APK (foss)
         run: ./gradlew :app:assembleFossRelease
 
-      - name: Assemble bundle (play)
-        run: ./gradlew :app:bundlePlayRelease
+      - name: Assemble APK (play)
+        run: ./gradlew :app:assemblePlayRelease
 
       - name: Verify reproducible builds
         run: ./scripts/verify_reproducible.sh
@@ -104,10 +104,10 @@ jobs:
           path: app/build/outputs/apk/foss/release/app-foss-release.apk
           retention-days: 14
 
-      - name: Upload play AAB
+      - name: Upload play APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-play-release-aab
-          path: app/build/outputs/bundle/playRelease/app-play-release.aab
+          name: app-play-release-apk
+          path: app/build/outputs/apk/play/release/app-play-release.apk
           retention-days: 14
