@@ -1,0 +1,107 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        run: |
+          SDK_DIR="${ANDROID_HOME:-}"
+          if [ -z "$SDK_DIR" ]; then
+            SDK_DIR="$HOME/android-sdk"
+            if [ ! -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+              mkdir -p "$SDK_DIR/cmdline-tools"
+              curl -fsSL -o /tmp/clt.zip \
+                "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+              unzip -q /tmp/clt.zip -d "$SDK_DIR/cmdline-tools"
+              mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+            fi
+          fi
+          export ANDROID_HOME="$SDK_DIR"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" "build-tools;35.0.0" > /dev/null 2>&1
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+
+      - name: Sync content
+        run: |
+          if [ ! -f "app/src/main/assets/html/index.html" ]; then
+            LATEST=$(grep -v '^\s*#' scripts/sync_content.sha256 | grep -v '^\s*$' | grep -v 'test' | tail -1 | awk '{print $NF}')
+            if [ -z "$LATEST" ]; then
+              echo "No registered versions found in scripts/sync_content.sha256"
+              exit 1
+            fi
+            ./scripts/sync_content.sh "$LATEST"
+          fi
+
+      - name: Decode keystore and write signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > /tmp/release.jks
+          printf 'keystorePath=/tmp/release.jks\nkeystorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+
+      - name: Build signed AAB (play)
+        run: ./gradlew :app:bundlePlayRelease
+
+      - name: Build signed APK (foss)
+        run: ./gradlew :app:assembleFossRelease
+
+      - name: Stage and checksum release artifacts
+        run: |
+          mkdir -p staging
+          cp app/build/outputs/apk/foss/release/app-foss-release.apk staging/
+          sha256sum staging/app-foss-release.apk > staging/app-foss-release.apk.sha256
+          cp app/build/outputs/bundle/playRelease/app-play-release.aab staging/
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: staging/
+          retention-days: 7
+
+  publish:
+    needs: build-and-sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts/
+
+      - name: Upload AAB to Play internal track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.hearth.circuits
+          releaseFiles: artifacts/app-play-release.aab
+          track: internal
+
+      - name: Attach APK and checksum to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/app-foss-release.apk
+            artifacts/app-foss-release.apk.sha256
