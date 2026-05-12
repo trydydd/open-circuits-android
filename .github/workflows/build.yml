@@ -87,6 +87,15 @@ jobs:
       - name: Verify reproducible builds
         run: ./scripts/verify_reproducible.sh
 
+      - name: List build outputs
+        if: always()
+        run: |
+          echo "=== APK outputs ==="
+          find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || echo "No APKs found"
+          echo ""
+          echo "=== Bundle outputs ==="
+          find app/build/outputs/bundle -type f -name "*.aab" 2>/dev/null || echo "No AABs found"
+
       - name: Upload foss APK
         if: always()
         uses: actions/upload-artifact@v4
