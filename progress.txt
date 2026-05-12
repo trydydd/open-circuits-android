@@ -1,7 +1,7 @@
 PROGRESS
 ========
-Last updated: 2026-05-11
-Branch: claude/complete-b6-android-K75S9
+Last updated: 2026-05-12
+Branch: claude/document-project-purpose-XxAz5
 
 
 COMPLETED
@@ -792,17 +792,53 @@ B9 - CI build workflow on every PR (status: done)
     - Runner: ubuntu-latest
     - JDK: setup-java@v4, Java 21 (Temurin)
     - SDK: caches both gradle and Android SDK
-    - Tasks: lint, test, assemble for both foss and play flavors
+    - Syncs content: downloads latest registered open-circuits release from GitHub
+    - Tasks: lint, test, assemble APK for both foss and play flavors
     - Reproducible build verification via scripts/verify_reproducible.sh
-    - Artifact upload: APK + AAB retained 14 days
-  Test cases (all pass):
-    workflow_parses            -- python yaml.safe_load succeeds
-    triggers_on_pr_and_push    -- 'on:' has pull_request and push
-    caches_gradle              -- setup-java with cache: gradle
-    runs_lint_and_test_and_assemble -- all 6 gradle tasks present
-    (additional) upload_artifacts_14_days
-    (additional) runs_on_ubuntu_latest
-    (additional) setup_java_v4_jdk21
+    - Artifact upload: foss APK and play APK retained 14 days
+  Changes made (updates from previous notes):
+    - Fixed content sync to use release tarball (not source repo)
+    - Updated SHA256 hash for v1.1.0 release (5f1f899c35...)
+    - Changed bundlePlayRelease → assemblePlayRelease (no signing in CI)
+    - Added automatic content sync from latest registered version
+
+
+B9.5 - UI polish — status bar insets, safe area layout (status: done)
+  Fixed WebView collision with system status bar. Files modified:
+    app/src/main/res/layout/activity_main.xml
+    app/src/main/java/org/hearth/circuits/MainActivity.kt
+  Changes:
+    - Added android:fitsSystemWindows="true" to FrameLayout
+    - Set WindowCompat.setDecorFitsSystemWindows(window, false)
+    - Added WindowInsets listener to apply system bar padding to WebView
+  Verified: App respects device status bar and navigation bar; no collision
+
+
+RECENT FIXES
+-----------
+
+Icon Declaration Fix:
+  AndroidManifest.xml was missing android:icon="@mipmap/ic_launcher" in the
+  application tag. App was showing generic Android icon instead of custom
+  Open Circuits icon. Added the missing attribute; app now displays correct
+  copper ring icon on homescreen.
+
+AAB Build Issue:
+  B9 (CI) was trying to build bundlePlayRelease which requires signing
+  credentials not available in CI. Changed approach:
+    - B9 now builds assemblePlayRelease (unsigned APK) for testing
+    - B10 (release workflow) will handle building and signing the AAB
+  This is the standard pattern: CI tests with unsigned builds, releases
+  handle signing with credentials from secrets.
+
+Content Sync Script Fix:
+  Updated sync_content.sh to download release tarball instead of source repo.
+  Release tarballs contain pre-built HTML; source repos require build step.
+  URL changed from:
+    https://github.com/trydydd/open-circuits/archive/refs/tags/{tag}.tar.gz
+  To:
+    https://github.com/trydydd/open-circuits/releases/download/{tag}/open-circuits-{tag}.tar.gz
+  Script now handles both tarball structures (output/html/ or flat index.html).
 
 
 GOTCHAS AND HANDOFF NOTES
@@ -848,6 +884,36 @@ GOTCHAS AND HANDOFF NOTES
     which will push APK/AAB artifacts to GitHub Releases. The build workflow is
     pure CI (verify code quality); the release workflow is deployment (push
     artifacts). Keeping them separate prevents accidental modification of main.
+
+61. CONTENT SYNC DOWNLOADS RELEASE TARBALL, NOT SOURCE REPO
+    sync_content.sh uses the GitHub releases download URL:
+      https://github.com/trydydd/open-circuits/releases/download/{tag}/open-circuits-{tag}.tar.gz
+    NOT the source repository archive:
+      https://github.com/trydydd/open-circuits/archive/refs/tags/{tag}.tar.gz
+    Release tarballs contain pre-built HTML in output/html/; source repos are raw
+    Python/build files. The SHA256 hash in scripts/sync_content.sha256 is for the
+    release tarball. Verify the correct hash when registering new versions.
+
+62. WEBVIEWASSETLOADER REQUIRES PROPER WINDOWINSETS HANDLING
+    The WebView must respect system insets (status bar, navigation bar) to avoid
+    overlaying UI. B9.5 fixes this with:
+      - android:fitsSystemWindows="true" on the root FrameLayout
+      - WindowCompat.setDecorFitsSystemWindows(window, false) in onCreate
+      - WindowInsets listener applying system bar padding
+    Without these, content collides with the status bar on device.
+
+63. MANIFEST ICON ATTRIBUTE IS REQUIRED FOR LAUNCHER ICON
+    The <application> tag MUST declare android:icon="@mipmap/ic_launcher"
+    to use the adaptive icon. If missing, Android falls back to the default
+    system icon. The manifest was missing this on initial setup; add it to
+    any new project using adaptive icons.
+
+64. BUILD FLAVORS ALLOW TESTING WITHOUT SIGNING CREDENTIALS
+    The play and foss flavors both produce assemblable artifacts in CI. The
+    release (play) bundle requires signing, so B9 builds unsigned APKs for
+    testing. B10 (release workflow) will build the signed AAB when actually
+    releasing. This separation allows CI to verify both flavors work without
+    needing production signing credentials.
 
 
 NEXT TASKS (from ledger)
