@@ -90,14 +90,11 @@ jobs:
       - name: List build outputs
         if: always()
         run: |
-          echo "=== APK outputs ==="
-          find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || echo "No APKs found"
+          echo "=== All build outputs ==="
+          find app/build/outputs -type f 2>/dev/null | sort || echo "No outputs found"
           echo ""
-          echo "=== Bundle outputs (all locations) ==="
-          find app/build/outputs -type f -name "*.aab" 2>/dev/null || echo "No AABs found anywhere"
-          echo ""
-          echo "=== Bundle directory contents ==="
-          ls -lR app/build/outputs/bundle 2>/dev/null || echo "Bundle directory doesn't exist"
+          echo "=== Full directory tree ==="
+          find app/build/outputs -type d 2>/dev/null | sort || echo "No output directories"
 
       - name: Upload foss APK
         if: always()
