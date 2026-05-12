@@ -50,6 +50,21 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
 
+      - name: Sync content from latest open-circuits release
+        run: |
+          if [ ! -f "app/src/main/assets/html/index.html" ]; then
+            echo "Content not found; syncing from latest open-circuits release..."
+            LATEST=$(curl -s https://api.github.com/repos/trydydd/open-circuits/releases/latest | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+            if [ -z "$LATEST" ]; then
+              echo "Failed to determine latest release; skipping sync"
+              exit 1
+            fi
+            echo "Syncing content from $LATEST"
+            ./scripts/sync_content.sh "$LATEST"
+          else
+            echo "Content already present; skipping sync"
+          fi
+
       - name: Run lint (foss)
         run: ./gradlew :app:lintFossRelease
 
