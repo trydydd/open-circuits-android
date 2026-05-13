@@ -934,6 +934,7 @@ tasks:
       - No UI collision or clipping with system bars in portrait or landscape.
 
   - id: B10
+    status: done
     title: CI — release workflow on tag (Play upload + GitHub APK)
     intent: |
       Tagging v1.0.0 builds, signs, uploads to Play internal track,
